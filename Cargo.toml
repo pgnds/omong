@@ -1,0 +1,8 @@
+[package]
+name = "omong"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mongodb = { version = "3.8.2", features = ["sync"] }
+tokio = "1.53.1"
