@@ -10,16 +10,23 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Alignment, Flex, Rect},
     style::{Color, Style},
     text::Line,
-    widgets::{Block, Borders, Paragraph, BorderType, Clear},
+    widgets::{Block, Borders, Paragraph, BorderType, Clear, List, ListItem},
     Frame, Terminal,
 };
+
+use mongodb::bson::doc;
 
 pub struct App {
     show_add_popup: bool,
     
     input_buffer: String,
     
-    connection: Option<String>,
+    client: Option<mongodb::sync::Client>,
+    connection_error: Option<String>,
+
+    databases: Vec<String>,
+
+    connection_alias: Option<String>,
     database: Option<String>,
     collection: Option<String>,
 }
@@ -36,7 +43,10 @@ fn main() -> io::Result<()> {
     let mut app = App {
         show_add_popup: false,
         input_buffer: String::new(),
-        connection: None,
+        client: None,
+        connection_error: None,
+        databases: Vec::new(),
+        connection_alias: None,
         database: None,
         collection: None,
     };
@@ -68,8 +78,28 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                         app.input_buffer.clear();
                     }
                     KeyCode::Enter => {
-                        app.show_add_popup = false;
-                        app.input_buffer.clear();
+                        let uri = app.input_buffer.trim();
+
+                        match mongodb::sync::Client::with_uri_str(&uri) {
+                            Ok(client) => {
+                                match client.database("admin").run_command(doc! {"ping": 1}).run() {
+                                    Ok(_) => {
+                                        app.databases = client.list_database_names().run().unwrap_or_default();
+                                        app.client = Some(client);
+                                        app.connection_alias = Some(uri.to_string());
+                                        app.show_add_popup = false;
+                                        app.connection_error = None;
+                                        app.input_buffer.clear();
+                                    }
+                                    Err(e) => {
+                                        app.connection_error = Some(format!("ping failed: {}", e));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                app.connection_error = Some(format!("invalid URI: {}", e));
+                            }
+                        }
                     }
                     KeyCode::Backspace => {
                         app.input_buffer.pop();
@@ -106,8 +136,14 @@ fn ui(frame: &mut Frame, app: &App) {
     let status_area = chunks[1];
 
     // main content placeholder
-    let main_block = Block::default().borders(Borders::ALL);
-    render_connections_box(frame, main_area);
+    let _main_block = Block::default().borders(Borders::ALL);
+
+    if app.client.is_some() {
+        render_database_list(frame, main_area, app);
+    } else {
+        render_connections_box(frame, main_area);
+    }
+
     render_status_bar(frame, status_area, app);
     
     if app.show_add_popup {
@@ -136,12 +172,16 @@ fn render_connections_box(frame: &mut Frame, area: Rect) {
 }
 
 fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
-    let status_text = format!(
+    let mut status_text = format!(
         " conn: {} | db: {} | coll: {} ",
-        app.connection.as_deref().unwrap_or("-"),
+        app.connection_alias.as_deref().unwrap_or("-"),
         app.database.as_deref().unwrap_or("-"),
         app.collection.as_deref().unwrap_or("-"),
     );
+
+    if let Some(err) = &app.connection_error {
+        status_text.push_str(&format!(" | ERROR: {} ", err));
+    }
 
     let status_bar = Paragraph::new(Line::from(status_text))
         .style(Style::default().bg(Color::Blue).fg(Color::White));
@@ -183,5 +223,22 @@ fn render_app_popup(frame: &mut Frame, app: &App) {
         .style(Style::default().fg(Color::White));
 
     frame.render_widget(text, inner);
+}
+
+fn render_database_list(frame: &mut Frame, area: Rect, app: &App) {
+    let block = Block::default()
+        .title("databases")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Thick);
+    
+    let items: Vec<ListItem> = app
+        .databases
+        .iter()
+        .map(|db| ListItem::new(db.as_str()))
+        .collect();
+
+    let list = List::new(items).block(block);
+
+    frame.render_widget(list, area);
 }
 
