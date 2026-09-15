@@ -10,21 +10,29 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Alignment, Flex, Rect},
     style::{Color, Style},
     text::Line,
-    widgets::{Block, Borders, Paragraph, BorderType, Clear, List, ListItem},
+    widgets::{Block, Borders, Paragraph, BorderType, Clear, List, ListItem, ListState},
     Frame, Terminal,
 };
 
-use mongodb::bson::doc;
+enum PopupField {
+    Alias,
+    Uri,
+}
 
 pub struct App {
     show_add_popup: bool,
     
-    input_buffer: String,
+    alias_buffer: String,
+    uri_buffer: String,
+    popup_focus: PopupField,
     
     client: Option<mongodb::sync::Client>,
-    connection_error: Option<String>,
-
+    error_message: Option<String>,
+    
+    saved_connections: Vec<(String, String)>,
+    connections_list_state: ListState,
     databases: Vec<String>,
+    //db_list_state: ListState,
 
     connection_alias: Option<String>,
     database: Option<String>,
@@ -42,10 +50,15 @@ fn main() -> io::Result<()> {
     // app
     let mut app = App {
         show_add_popup: false,
-        input_buffer: String::new(),
+        alias_buffer: String::new(),
+        uri_buffer: String::new(),
+        popup_focus: PopupField::Alias,
         client: None,
-        connection_error: None,
+        error_message: None,
+        saved_connections: load_connections(),
+        connections_list_state: ListState::default(),
         databases: Vec::new(),
+        //db_list_state: ListState::default(),
         connection_alias: None,
         database: None,
         collection: None,
@@ -75,37 +88,46 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                 match key.code {
                     KeyCode::Esc => {
                         app.show_add_popup = false;
-                        app.input_buffer.clear();
+                        app.alias_buffer.clear();
+                        app.uri_buffer.clear();
+                        app.popup_focus = PopupField::Alias;
                     }
-                    KeyCode::Enter => {
-                        let uri = app.input_buffer.trim();
-
-                        match mongodb::sync::Client::with_uri_str(&uri) {
-                            Ok(client) => {
-                                match client.database("admin").run_command(doc! {"ping": 1}).run() {
-                                    Ok(_) => {
-                                        app.databases = client.list_database_names().run().unwrap_or_default();
-                                        app.client = Some(client);
-                                        app.connection_alias = Some(uri.to_string());
-                                        app.show_add_popup = false;
-                                        app.connection_error = None;
-                                        app.input_buffer.clear();
-                                    }
-                                    Err(e) => {
-                                        app.connection_error = Some(format!("ping failed: {}", e));
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                app.connection_error = Some(format!("invalid URI: {}", e));
-                            }
+                    KeyCode::Tab => {
+                        app.popup_focus = match app.popup_focus {
+                            PopupField::Alias => PopupField::Uri,
+                            PopupField::Uri => PopupField::Alias,
                         }
                     }
                     KeyCode::Backspace => {
-                        app.input_buffer.pop();
+                        match app.popup_focus {
+                            PopupField::Alias => { app.alias_buffer.pop(); }
+                            PopupField::Uri => { app.uri_buffer.pop(); }
+                        }
                     }
                     KeyCode::Char(c) => {
-                        app.input_buffer.push(c);
+                        match app.popup_focus {
+                            PopupField::Alias => { app.alias_buffer.push(c); }
+                            PopupField::Uri => { app.uri_buffer.push(c); }
+                        }
+                    }
+                    KeyCode::Enter => {
+                        if app.alias_buffer.is_empty() || app.uri_buffer.is_empty() {
+                            app.error_message = Some("alias and uri are both required".to_string());
+                        } else {
+                            match save_connection(&app.alias_buffer.trim(), app.uri_buffer.trim()) {
+                                Ok(_) => {
+                                    app.saved_connections = load_connections();
+                                    app.show_add_popup = false;
+                                    app.error_message = None;
+                                    app.alias_buffer.clear();
+                                    app.uri_buffer.clear();
+                                    app.popup_focus = PopupField::Alias;
+                                }
+                                Err(e) => {
+                                    app.error_message = Some(format!("failed to save connection: {}", e));
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }
@@ -179,7 +201,7 @@ fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
         app.collection.as_deref().unwrap_or("-"),
     );
 
-    if let Some(err) = &app.connection_error {
+    if let Some(err) = &app.error_message {
         status_text.push_str(&format!(" | ERROR: {} ", err));
     }
 
@@ -206,7 +228,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 }
 
 fn render_app_popup(frame: &mut Frame, app: &App) {
-    let popup_area = centered_rect(60, 5, frame.area());
+    let popup_area = centered_rect(60, 10, frame.area());
 
     frame.render_widget(Clear, popup_area);
 
@@ -218,11 +240,29 @@ fn render_app_popup(frame: &mut Frame, app: &App) {
 
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
+    
+    let fields = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(1)])
+        .split(inner);
 
-    let text = Paragraph::new(format!("{}_", app.input_buffer))
-        .style(Style::default().fg(Color::White));
+    let alias_style = if matches!(app.popup_focus, PopupField::Alias) {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default().fg(Color::White)
+    };
 
-    frame.render_widget(text, inner);
+    let uri_style = if matches!(app.popup_focus, PopupField::Uri) {
+        Style::default().fg(Color::Yellow) 
+    } else {
+        Style::default().fg(Color::White)
+    };
+
+    let alias_line = Paragraph::new(format!("alias: {}_", app.alias_buffer)).style(alias_style);
+    let uri_line = Paragraph::new(format!("uri: {}_", app.uri_buffer)).style(uri_style);
+
+    frame.render_widget(alias_line, fields[0]);
+    frame.render_widget(uri_line, fields[1]);
 }
 
 fn render_database_list(frame: &mut Frame, area: Rect, app: &App) {
@@ -242,3 +282,32 @@ fn render_database_list(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(list, area);
 }
 
+fn connections_file_path() -> std::path::PathBuf {
+    let home = std::env::var("HOME").expect("HOME not set");
+    std::path::PathBuf::from(home).join(".config/omong/connections")
+}
+
+fn load_connections() -> Vec<(String, String)> {
+    let path = connections_file_path();
+    let content = std::fs::read_to_string(path).unwrap_or_default();
+    content
+        .lines()
+        .filter_map(|line| line.split_once('|'))
+        .map(|(alias, uri)| (alias.to_string(), uri.to_string()))
+        .collect()
+}
+
+fn save_connection(alias: &str, uri: &str) -> io::Result<()> {
+    let path = connections_file_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+
+    writeln!(file, "{}|{}", alias, uri)
+}
