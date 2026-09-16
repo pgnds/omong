@@ -14,12 +14,20 @@ use ratatui::{
     Frame, Terminal,
 };
 
+use mongodb::bson::doc;
+
 enum PopupField {
     Alias,
     Uri,
 }
 
+enum Screen {
+    Connections,
+    Databases,
+}
+
 pub struct App {
+    screen: Screen,
     show_add_popup: bool,
     
     alias_buffer: String,
@@ -49,6 +57,7 @@ fn main() -> io::Result<()> {
 
     // app
     let mut app = App {
+        screen: Screen::Connections,
         show_add_popup: false,
         alias_buffer: String::new(),
         uri_buffer: String::new(),
@@ -137,7 +146,60 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                     KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         app.show_add_popup = true;
                     }
-                    _ => {}
+                    _ => match app.screen {
+                        Screen::Connections => match key.code {
+                            KeyCode::Down => {
+                                let len = app.saved_connections.len();
+                                if len > 0 {
+                                    let i = match app.connections_list_state.selected() {
+                                        Some(i) => (i + 1) % len,
+                                        None => 0,
+                                    };
+                                    app.connections_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up => {
+                                let len = app.saved_connections.len();
+                                if len > 0 {
+                                    let i = match app.connections_list_state.selected() {
+                                        Some(i) => (i + len - 1) % len,
+                                        None => 0,
+                                    };
+                                    app.connections_list_state.select(Some(i));
+                                }       
+                            }
+                            KeyCode::Enter => {
+                                if let Some(i) = app.connections_list_state.selected() {
+                                    let (_, uri) = &app.saved_connections[i];
+                                    match mongodb::sync::Client::with_uri_str(uri.trim()) {
+                                        Ok(client) => {
+                                            match client.database("admin").run_command(doc! {"ping": 1}).run() {
+                                                Ok(_) => {
+                                                    app.databases = client
+                                                        .list_database_names()
+                                                        .run()
+                                                        .unwrap_or_default();
+                                                    app.client = Some(client);
+                                                    app.error_message = None;
+                                                    app.screen = Screen::Databases;
+                                                }
+                                                Err(e) => {
+                                                    app.error_message = Some(format!("ping failed: {}", e));
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            app.error_message = Some(format!("invalid uri: {}", e));
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                        Screen::Databases => match key.code {
+                            _ => {}
+                        }
+                    }
                 }
             }
         }
@@ -145,7 +207,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
     Ok(())
 }
 
-fn ui(frame: &mut Frame, app: &App) {
+fn ui(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -160,10 +222,9 @@ fn ui(frame: &mut Frame, app: &App) {
     // main content placeholder
     let _main_block = Block::default().borders(Borders::ALL);
 
-    if app.client.is_some() {
-        render_database_list(frame, main_area, app);
-    } else {
-        render_connections_box(frame, main_area);
+    match app.screen {
+        Screen::Connections => render_connections_box(frame, main_area, app),
+        Screen::Databases => render_database_list(frame, main_area, app),
     }
 
     render_status_bar(frame, status_area, app);
@@ -173,24 +234,41 @@ fn ui(frame: &mut Frame, app: &App) {
     }
 }
 
-fn render_connections_box(frame: &mut Frame, area: Rect) {
+fn render_connections_box(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .title("connections")
         .borders(Borders::ALL)
         .border_type(BorderType::Thick);
 
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
+    if app.saved_connections.is_empty() {
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+    
 
-    let hint = Paragraph::new("Ctrl+A to add a new connection")
-        .alignment(Alignment::Center);
+        let hint = Paragraph::new("Ctrl+A to add a new connection")
+            .alignment(Alignment::Center);
 
-    let vertical = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Fill(1), Constraint::Length(1), Constraint::Fill(1)])
-        .split(inner);
+        let vertical = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Fill(1), Constraint::Length(1), Constraint::Fill(1)])
+            .split(inner);
 
-    frame.render_widget(hint, vertical[1]);
+        frame.render_widget(hint, vertical[1]);
+        return;
+    }
+
+    let items: Vec<ListItem> = app
+        .saved_connections
+        .iter()
+        .map(|(alias, _uri)| ListItem::new(alias.as_str()))
+        .collect();
+
+    let list = List::new(items)
+        .block(block)
+        .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black))
+        .highlight_symbol(">");
+
+    frame.render_stateful_widget(list, area, &mut app.connections_list_state);
 }
 
 fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
