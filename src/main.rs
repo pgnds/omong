@@ -23,7 +23,7 @@ enum PopupField {
 
 enum Screen {
     Connections,
-    Databases,
+    Databases { list_state: ListState, names: Vec<String> },
 }
 
 pub struct App {
@@ -39,8 +39,6 @@ pub struct App {
     
     saved_connections: Vec<(String, String)>,
     connections_list_state: ListState,
-    databases: Vec<String>,
-    //db_list_state: ListState,
 
     connection_alias: Option<String>,
     database: Option<String>,
@@ -66,8 +64,6 @@ fn main() -> io::Result<()> {
         error_message: None,
         saved_connections: load_connections(),
         connections_list_state: ListState::default(),
-        databases: Vec::new(),
-        //db_list_state: ListState::default(),
         connection_alias: None,
         database: None,
         collection: None,
@@ -146,7 +142,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                     KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         app.show_add_popup = true;
                     }
-                    _ => match app.screen {
+                    _ => match &mut app.screen {
                         Screen::Connections => match key.code {
                             KeyCode::Down => {
                                 let len = app.saved_connections.len();
@@ -170,18 +166,22 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                             }
                             KeyCode::Enter => {
                                 if let Some(i) = app.connections_list_state.selected() {
-                                    let (_, uri) = &app.saved_connections[i];
+                                    let (alias, uri) = &app.saved_connections[i];
                                     match mongodb::sync::Client::with_uri_str(uri.trim()) {
                                         Ok(client) => {
                                             match client.database("admin").run_command(doc! {"ping": 1}).run() {
                                                 Ok(_) => {
-                                                    app.databases = client
+                                                    let db_names = client
                                                         .list_database_names()
                                                         .run()
                                                         .unwrap_or_default();
                                                     app.client = Some(client);
+                                                    app.connection_alias = Some(alias.to_string());
                                                     app.error_message = None;
-                                                    app.screen = Screen::Databases;
+                                                    app.screen = Screen::Databases {
+                                                        list_state: ListState::default(),
+                                                        names: db_names
+                                                    };
                                                 }
                                                 Err(e) => {
                                                     app.error_message = Some(format!("ping failed: {}", e));
@@ -196,7 +196,32 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                             }
                             _ => {}
                         }
-                        Screen::Databases => match key.code {
+                        Screen::Databases { list_state, names } => match key.code {
+                            KeyCode::Down => {
+                                let len = names.len();
+                                if len > 0 {
+                                    let i = match list_state.selected() {
+                                        Some(i) => (i + 1) % len,
+                                        None => 0,
+                                    };
+                                    list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up => {
+                                let len = names.len();
+                                if len > 0 {
+                                    let i = match list_state.selected() {
+                                        Some(i) => (i + len - 1) % len,
+                                        None => 0,
+                                    };
+                                    list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Enter => {
+                                if let Some(i) = list_state.selected() {
+                                    app.database = Some(names[i].clone());
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -224,7 +249,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
 
     match app.screen {
         Screen::Connections => render_connections_box(frame, main_area, app),
-        Screen::Databases => render_database_list(frame, main_area, app),
+        Screen::Databases {..} => render_database_list(frame, main_area, app),
     }
 
     render_status_bar(frame, status_area, app);
@@ -265,8 +290,7 @@ fn render_connections_box(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let list = List::new(items)
         .block(block)
-        .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black))
-        .highlight_symbol(">");
+        .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black));
 
     frame.render_stateful_widget(list, area, &mut app.connections_list_state);
 }
@@ -343,21 +367,19 @@ fn render_app_popup(frame: &mut Frame, app: &App) {
     frame.render_widget(uri_line, fields[1]);
 }
 
-fn render_database_list(frame: &mut Frame, area: Rect, app: &App) {
-    let block = Block::default()
-        .title("databases")
-        .borders(Borders::ALL)
-        .border_type(BorderType::Thick);
-    
-    let items: Vec<ListItem> = app
-        .databases
-        .iter()
-        .map(|db| ListItem::new(db.as_str()))
-        .collect();
+fn render_database_list(frame: &mut Frame, area: Rect, app: &mut App) {
+    if let Screen::Databases { list_state, names } = &mut app.screen {
+        let items: Vec<ListItem> = names
+            .iter()
+            .map(|db| ListItem::new(db.as_str()))
+            .collect();
 
-    let list = List::new(items).block(block);
+        let list = List::new(items)
+            .block(Block::default().title("databases").borders(Borders::ALL).border_type(BorderType::Thick))
+            .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black));
 
-    frame.render_widget(list, area);
+        frame.render_stateful_widget(list, area, list_state);
+    }
 }
 
 fn connections_file_path() -> std::path::PathBuf {
