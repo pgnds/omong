@@ -24,6 +24,7 @@ enum PopupField {
 enum Screen {
     Connections,
     Databases { list_state: ListState, names: Vec<String> },
+    Collections { list_state: ListState, names: Vec<String> },
 }
 
 pub struct App {
@@ -220,6 +221,47 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                             KeyCode::Enter => {
                                 if let Some(i) = list_state.selected() {
                                     app.database = Some(names[i].clone());
+
+                                    if let (Some(client), Some(database_name)) = (&app.client, &app.database) {
+                                        let collection_names = client
+                                            .database(database_name)
+                                            .list_collection_names()
+                                            .run()
+                                            .unwrap_or_default();
+
+                                        app.screen = Screen::Collections {
+                                            list_state: ListState::default(),
+                                            names: collection_names
+                                        }
+                                    };
+                                }
+                            }
+                            _ => {}
+                        }
+                        Screen::Collections { list_state, names } => match key.code {
+                            KeyCode::Down => {
+                                let len = names.len();
+                                if len > 0 {
+                                    let i = match list_state.selected() {
+                                        Some(i) => (i + 1) % len,
+                                        None => 0,
+                                    };
+                                    list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up => {
+                                let len = names.len();
+                                if len > 0 {
+                                    let i = match list_state.selected() {
+                                        Some(i) => (i + len - 1) % len,
+                                        None => 0,
+                                    };
+                                    list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Enter => {
+                                if let Some(i) = list_state.selected() {
+                                    app.collection = Some(names[i].clone());
                                 }
                             }
                             _ => {}
@@ -250,6 +292,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
     match app.screen {
         Screen::Connections => render_connections_box(frame, main_area, app),
         Screen::Databases {..} => render_database_list(frame, main_area, app),
+        Screen::Collections {..} => render_collection_list(frame, main_area, app),
     }
 
     render_status_bar(frame, status_area, app);
@@ -376,6 +419,21 @@ fn render_database_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
         let list = List::new(items)
             .block(Block::default().title("databases").borders(Borders::ALL).border_type(BorderType::Thick))
+            .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black));
+
+        frame.render_stateful_widget(list, area, list_state);
+    }
+}
+
+fn render_collection_list(frame: &mut Frame, area: Rect, app: &mut App) {
+    if let Screen::Collections { list_state, names } = &mut app.screen {
+        let items: Vec<ListItem> = names
+            .iter()
+            .map(|coll| ListItem::new(coll.as_str()))
+            .collect();
+
+        let list = List::new(items)
+            .block(Block::default().title("collections").borders(Borders::ALL).border_type(BorderType::Thick))
             .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black));
 
         frame.render_stateful_widget(list, area, list_state);
