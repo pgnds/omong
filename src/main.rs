@@ -16,6 +16,8 @@ use ratatui::{
 
 use mongodb::bson::doc;
 
+const PAGE_SIZE: u64 = 20;
+
 enum PopupField {
     Alias,
     Uri,
@@ -25,6 +27,7 @@ enum Screen {
     Connections,
     Databases { list_state: ListState, names: Vec<String> },
     Collections { list_state: ListState, names: Vec<String> },
+    Documents { list_state: ListState, docs: Vec<mongodb::bson::Document>, page: u64 },
 }
 
 pub struct App {
@@ -262,6 +265,35 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                             KeyCode::Enter => {
                                 if let Some(i) = list_state.selected() {
                                     app.collection = Some(names[i].clone());
+                                    let docs = fetch_documents(app, 0);
+                                    app.screen = Screen::Documents {
+                                        list_state: ListState::default(),
+                                        docs,
+                                        page: 0,
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                        Screen::Documents { list_state, docs, page: _ } => match key.code {
+                             KeyCode::Down => {
+                                let len = docs.len();
+                                if len > 0 {
+                                    let i = match list_state.selected() {
+                                        Some(i) => (i + 1) % len,
+                                        None => 0,
+                                    };
+                                    list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up => {
+                                let len = docs.len();
+                                if len > 0 {
+                                    let i = match list_state.selected() {
+                                        Some(i) => (i + len - 1) % len,
+                                        None => 0,
+                                    };
+                                    list_state.select(Some(i));
                                 }
                             }
                             _ => {}
@@ -293,6 +325,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
         Screen::Connections => render_connections_box(frame, main_area, app),
         Screen::Databases {..} => render_database_list(frame, main_area, app),
         Screen::Collections {..} => render_collection_list(frame, main_area, app),
+        Screen::Documents {..} => render_documents_list(frame, main_area, app),
     }
 
     render_status_bar(frame, status_area, app);
@@ -440,6 +473,26 @@ fn render_collection_list(frame: &mut Frame, area: Rect, app: &mut App) {
     }
 }
 
+fn render_documents_list(frame: &mut Frame, area: Rect, app: &mut App) {
+    if let Screen::Documents { list_state, docs, page } = &mut app.screen {
+        let items: Vec<ListItem> = docs
+            .iter()
+            .map(|doc| ListItem::new(doc.to_string()))
+            .collect();
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .title(format!("documents (page {})", *page + 1))
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Thick),
+            )
+            .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black));
+
+        frame.render_stateful_widget(list, area, list_state);
+    }
+}
+
 fn connections_file_path() -> std::path::PathBuf {
     let home = std::env::var("HOME").expect("HOME not set");
     std::path::PathBuf::from(home).join(".config/omong/connections")
@@ -468,4 +521,20 @@ fn save_connection(alias: &str, uri: &str) -> io::Result<()> {
         .open(path)?;
 
     writeln!(file, "{}|{}", alias, uri)
+}
+
+fn fetch_documents(app: &App, page: u64) -> Vec<mongodb::bson::Document> {
+    let (Some(client), Some(db), Some(collection)) = (&app.client, &app.database, &app.collection) else {
+        return Vec::new();
+    };
+
+    client
+    .database(db)
+    .collection::<mongodb::bson::Document>(collection)
+    .find(doc! {})
+    .skip(page * PAGE_SIZE)
+    .limit(PAGE_SIZE as i64)
+    .run()
+    .map(|cursor| cursor.filter_map(Result::ok).collect())
+    .unwrap_or_default()
 }
