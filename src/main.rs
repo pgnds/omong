@@ -198,6 +198,25 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                                     }
                                 }
                             }
+                            KeyCode::Char('d') => {
+                                if let Some(i) = app.connections_list_state.selected() {
+                                    let (alias, _) = &app.saved_connections[i];
+                                    match delete_connection(&app.saved_connections, alias) {
+                                        Ok(connections) => {
+                                            app.saved_connections = connections;
+                                            let len = app.saved_connections.len();
+                                            if len == 0 {
+                                                app.connections_list_state.select(None);
+                                            } else if i >= len {
+                                                app.connections_list_state.select(Some(len - 1))
+                                            }
+                                        }
+                                        Err(e) => {
+                                            app.error_message = Some(format!("failed to delete connection: {}", e));
+                                        }
+                                    }
+                                }
+                            }
                             _ => {}
                         }
                         Screen::Databases { list_state, names } => match key.code {
@@ -521,6 +540,23 @@ fn save_connection(alias: &str, uri: &str) -> io::Result<()> {
         .open(path)?;
 
     writeln!(file, "{}|{}", alias, uri)
+}
+
+fn delete_connection(connections: &[(String, String)], alias: &str) -> io::Result<Vec<(String, String)>> {
+    let remaining: Vec<(String, String)> = connections
+        .iter()
+        .filter(|(a, _)| a != alias)
+        .cloned()
+        .collect();
+
+    let path = connections_file_path();
+    let mut content = String::new();
+    for (a, u) in &remaining {
+        content.push_str(&format!("{}|{}\n", a, u));
+    }
+    std::fs::write(path, content)?;
+
+    Ok(remaining)
 }
 
 fn fetch_documents(app: &App, page: u64) -> Vec<mongodb::bson::Document> {
