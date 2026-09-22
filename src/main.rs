@@ -2,16 +2,16 @@ use std::io;
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     execute,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame, Terminal,
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Alignment, Flex, Rect},
+    layout::{Alignment, Constraint, Direction, Flex, Layout, Rect},
     style::{Color, Style},
     text::Line,
-    widgets::{Block, Borders, Paragraph, BorderType, Clear, List, ListItem, ListState},
-    Frame, Terminal,
+    widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
 
 use mongodb::bson::doc;
@@ -25,22 +25,37 @@ enum PopupField {
 
 enum Screen {
     Connections,
-    Databases { list_state: ListState, names: Vec<String> },
-    Collections { list_state: ListState, names: Vec<String> },
-    Documents { list_state: ListState, docs: Vec<mongodb::bson::Document>, page: u64 },
+    Databases {
+        list_state: ListState,
+        names: Vec<String>,
+    },
+    Collections {
+        list_state: ListState,
+        names: Vec<String>,
+    },
+    Documents {
+        list_state: ListState,
+        docs: Vec<mongodb::bson::Document>,
+        page: u64,
+    },
+}
+
+enum Overlay {
+    AddConnectionPopup {
+        alias_buffer: String,
+        uri_buffer: String,
+        focus: PopupField,
+        editing_alias: Option<String>,
+    },
 }
 
 pub struct App {
     screen: Screen,
-    show_add_popup: bool,
-    
-    alias_buffer: String,
-    uri_buffer: String,
-    popup_focus: PopupField,
-    
+    overlay: Option<Overlay>,
+
     client: Option<mongodb::sync::Client>,
     error_message: Option<String>,
-    
+
     saved_connections: Vec<(String, String)>,
     connections_list_state: ListState,
 
@@ -60,10 +75,7 @@ fn main() -> io::Result<()> {
     // app
     let mut app = App {
         screen: Screen::Connections,
-        show_add_popup: false,
-        alias_buffer: String::new(),
-        uri_buffer: String::new(),
-        popup_focus: PopupField::Alias,
+        overlay: None,
         client: None,
         error_message: None,
         saved_connections: load_connections(),
@@ -93,47 +105,70 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                 continue;
             }
 
-            if app.show_add_popup {
+            if let Some(Overlay::AddConnectionPopup {
+                alias_buffer,
+                uri_buffer,
+                focus,
+                editing_alias,
+            }) = &mut app.overlay
+            {
                 match key.code {
                     KeyCode::Esc => {
-                        app.show_add_popup = false;
-                        app.alias_buffer.clear();
-                        app.uri_buffer.clear();
-                        app.popup_focus = PopupField::Alias;
+                        app.overlay = None;
                     }
                     KeyCode::Tab => {
-                        app.popup_focus = match app.popup_focus {
+                        *focus = match focus {
                             PopupField::Alias => PopupField::Uri,
                             PopupField::Uri => PopupField::Alias,
                         }
                     }
-                    KeyCode::Backspace => {
-                        match app.popup_focus {
-                            PopupField::Alias => { app.alias_buffer.pop(); }
-                            PopupField::Uri => { app.uri_buffer.pop(); }
+                    KeyCode::Backspace => match focus {
+                        PopupField::Alias => {
+                            alias_buffer.pop();
                         }
-                    }
-                    KeyCode::Char(c) => {
-                        match app.popup_focus {
-                            PopupField::Alias => { app.alias_buffer.push(c); }
-                            PopupField::Uri => { app.uri_buffer.push(c); }
+                        PopupField::Uri => {
+                            uri_buffer.pop();
                         }
-                    }
+                    },
+                    KeyCode::Char(c) => match focus {
+                        PopupField::Alias => {
+                            alias_buffer.push(c);
+                        }
+                        PopupField::Uri => {
+                            uri_buffer.push(c);
+                        }
+                    },
                     KeyCode::Enter => {
-                        if app.alias_buffer.is_empty() || app.uri_buffer.is_empty() {
+                        if alias_buffer.is_empty() || uri_buffer.is_empty() {
                             app.error_message = Some("alias and uri are both required".to_string());
-                        } else {
-                            match save_connection(&app.alias_buffer.trim(), app.uri_buffer.trim()) {
-                                Ok(_) => {
-                                    app.saved_connections = load_connections();
-                                    app.show_add_popup = false;
+                        } else if let Some(old_alias) = editing_alias {
+                            match update_connection(
+                                &app.saved_connections,
+                                old_alias,
+                                alias_buffer,
+                                uri_buffer.trim(),
+                            ) {
+                                Ok(connections) => {
+                                    app.saved_connections = connections;
                                     app.error_message = None;
-                                    app.alias_buffer.clear();
-                                    app.uri_buffer.clear();
-                                    app.popup_focus = PopupField::Alias;
+                                    app.overlay = None;
                                 }
                                 Err(e) => {
-                                    app.error_message = Some(format!("failed to save connection: {}", e));
+                                    app.error_message =
+                                        Some(format!("failed to save connection: {}", e));
+                                }
+                            }
+                        } else {
+                            match save_connection(alias_buffer.trim(), uri_buffer.trim()) {
+                                Ok(_) => {
+                                    app.saved_connections = load_connections();
+                                    app.overlay = None;
+                                    app.error_message = None;
+                                    app.overlay = None;
+                                }
+                                Err(e) => {
+                                    app.error_message =
+                                        Some(format!("failed to save connection: {}", e));
                                 }
                             }
                         }
@@ -141,10 +176,10 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                     _ => {}
                 }
             } else {
-                match key.code{
+                match key.code {
                     KeyCode::Char('q') => break,
                     KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        app.show_add_popup = true;
+                        app.overlay = None;
                     }
                     _ => match &mut app.screen {
                         Screen::Connections => match key.code {
@@ -166,14 +201,18 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                                         None => 0,
                                     };
                                     app.connections_list_state.select(Some(i));
-                                }       
+                                }
                             }
                             KeyCode::Enter => {
                                 if let Some(i) = app.connections_list_state.selected() {
                                     let (alias, uri) = &app.saved_connections[i];
                                     match mongodb::sync::Client::with_uri_str(uri.trim()) {
                                         Ok(client) => {
-                                            match client.database("admin").run_command(doc! {"ping": 1}).run() {
+                                            match client
+                                                .database("admin")
+                                                .run_command(doc! {"ping": 1})
+                                                .run()
+                                            {
                                                 Ok(_) => {
                                                     let db_names = client
                                                         .list_database_names()
@@ -184,11 +223,12 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                                                     app.error_message = None;
                                                     app.screen = Screen::Databases {
                                                         list_state: ListState::default(),
-                                                        names: db_names
+                                                        names: db_names,
                                                     };
                                                 }
                                                 Err(e) => {
-                                                    app.error_message = Some(format!("ping failed: {}", e));
+                                                    app.error_message =
+                                                        Some(format!("ping failed: {}", e));
                                                 }
                                             }
                                         }
@@ -212,13 +252,14 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                                             }
                                         }
                                         Err(e) => {
-                                            app.error_message = Some(format!("failed to delete connection: {}", e));
+                                            app.error_message =
+                                                Some(format!("failed to delete connection: {}", e));
                                         }
                                     }
                                 }
                             }
                             _ => {}
-                        }
+                        },
                         Screen::Databases { list_state, names } => match key.code {
                             KeyCode::Down => {
                                 let len = names.len();
@@ -244,7 +285,9 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                                 if let Some(i) = list_state.selected() {
                                     app.database = Some(names[i].clone());
 
-                                    if let (Some(client), Some(database_name)) = (&app.client, &app.database) {
+                                    if let (Some(client), Some(database_name)) =
+                                        (&app.client, &app.database)
+                                    {
                                         let collection_names = client
                                             .database(database_name)
                                             .list_collection_names()
@@ -253,13 +296,13 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
 
                                         app.screen = Screen::Collections {
                                             list_state: ListState::default(),
-                                            names: collection_names
+                                            names: collection_names,
                                         }
                                     };
                                 }
                             }
                             _ => {}
-                        }
+                        },
                         Screen::Collections { list_state, names } => match key.code {
                             KeyCode::Down => {
                                 let len = names.len();
@@ -293,9 +336,13 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                                 }
                             }
                             _ => {}
-                        }
-                        Screen::Documents { list_state, docs, page: _ } => match key.code {
-                             KeyCode::Down => {
+                        },
+                        Screen::Documents {
+                            list_state,
+                            docs,
+                            page: _,
+                        } => match key.code {
+                            KeyCode::Down => {
                                 let len = docs.len();
                                 if len > 0 {
                                     let i = match list_state.selected() {
@@ -316,8 +363,8 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                                 }
                             }
                             _ => {}
-                        }
-                    }
+                        },
+                    },
                 }
             }
         }
@@ -328,10 +375,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
 fn ui(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(1),
-        ])
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
         .split(frame.area());
 
     let main_area = chunks[0];
@@ -342,14 +386,14 @@ fn ui(frame: &mut Frame, app: &mut App) {
 
     match app.screen {
         Screen::Connections => render_connections_box(frame, main_area, app),
-        Screen::Databases {..} => render_database_list(frame, main_area, app),
-        Screen::Collections {..} => render_collection_list(frame, main_area, app),
-        Screen::Documents {..} => render_documents_list(frame, main_area, app),
+        Screen::Databases { .. } => render_database_list(frame, main_area, app),
+        Screen::Collections { .. } => render_collection_list(frame, main_area, app),
+        Screen::Documents { .. } => render_documents_list(frame, main_area, app),
     }
 
     render_status_bar(frame, status_area, app);
-    
-    if app.show_add_popup {
+
+    if app.overlay.is_some() {
         render_app_popup(frame, app);
     }
 }
@@ -363,14 +407,16 @@ fn render_connections_box(frame: &mut Frame, area: Rect, app: &mut App) {
     if app.saved_connections.is_empty() {
         let inner = block.inner(area);
         frame.render_widget(block, area);
-    
 
-        let hint = Paragraph::new("Ctrl+A to add a new connection")
-            .alignment(Alignment::Center);
+        let hint = Paragraph::new("Ctrl+A to add a new connection").alignment(Alignment::Center);
 
         let vertical = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Fill(1), Constraint::Length(1), Constraint::Fill(1)])
+            .constraints([
+                Constraint::Fill(1),
+                Constraint::Length(1),
+                Constraint::Fill(1),
+            ])
             .split(inner);
 
         frame.render_widget(hint, vertical[1]);
@@ -414,7 +460,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
         .constraints([Constraint::Percentage(percent_y)])
         .flex(Flex::Center)
         .split(area);
-    
+
     let horizontal = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(percent_x)])
@@ -425,38 +471,52 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 }
 
 fn render_app_popup(frame: &mut Frame, app: &App) {
+    let Some(Overlay::AddConnectionPopup {
+        alias_buffer,
+        uri_buffer,
+        focus,
+        editing_alias,
+    }) = &app.overlay
+    else {
+        return;
+    };
+
     let popup_area = centered_rect(60, 10, frame.area());
 
     frame.render_widget(Clear, popup_area);
 
     let block = Block::default()
-        .title("new connection")
+        .title(if editing_alias.is_some() {
+            "edit connection"
+        } else {
+            "new connection"
+        })
         .borders(Borders::ALL)
         .border_type(BorderType::Thick)
         .style(Style::default().bg(Color::Black));
 
     let inner = block.inner(popup_area);
     frame.render_widget(block, popup_area);
-    
+
     let fields = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(1), Constraint::Length(1)])
         .split(inner);
 
-    let alias_style = if matches!(app.popup_focus, PopupField::Alias) {
+    let alias_style = if matches!(focus, PopupField::Alias) {
         Style::default().fg(Color::Yellow)
     } else {
         Style::default().fg(Color::White)
     };
 
-    let uri_style = if matches!(app.popup_focus, PopupField::Uri) {
-        Style::default().fg(Color::Yellow) 
+    let uri_style = if matches!(focus, PopupField::Uri) {
+        Style::default().fg(Color::Yellow)
     } else {
         Style::default().fg(Color::White)
     };
 
-    let alias_line = Paragraph::new(format!("alias: {}_", app.alias_buffer)).style(alias_style);
-    let uri_line = Paragraph::new(format!("uri: {}_", app.uri_buffer)).style(uri_style);
+    let alias_line = Paragraph::new(format!("alias: {}_", alias_buffer)).style(alias_style);
+    let uri_line = Paragraph::new(format!("uri: {}_", uri_buffer)).style(uri_style);
 
     frame.render_widget(alias_line, fields[0]);
     frame.render_widget(uri_line, fields[1]);
@@ -464,13 +524,15 @@ fn render_app_popup(frame: &mut Frame, app: &App) {
 
 fn render_database_list(frame: &mut Frame, area: Rect, app: &mut App) {
     if let Screen::Databases { list_state, names } = &mut app.screen {
-        let items: Vec<ListItem> = names
-            .iter()
-            .map(|db| ListItem::new(db.as_str()))
-            .collect();
+        let items: Vec<ListItem> = names.iter().map(|db| ListItem::new(db.as_str())).collect();
 
         let list = List::new(items)
-            .block(Block::default().title("databases").borders(Borders::ALL).border_type(BorderType::Thick))
+            .block(
+                Block::default()
+                    .title("databases")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Thick),
+            )
             .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black));
 
         frame.render_stateful_widget(list, area, list_state);
@@ -485,7 +547,12 @@ fn render_collection_list(frame: &mut Frame, area: Rect, app: &mut App) {
             .collect();
 
         let list = List::new(items)
-            .block(Block::default().title("collections").borders(Borders::ALL).border_type(BorderType::Thick))
+            .block(
+                Block::default()
+                    .title("collections")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Thick),
+            )
             .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black));
 
         frame.render_stateful_widget(list, area, list_state);
@@ -493,7 +560,12 @@ fn render_collection_list(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_documents_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    if let Screen::Documents { list_state, docs, page } = &mut app.screen {
+    if let Screen::Documents {
+        list_state,
+        docs,
+        page,
+    } = &mut app.screen
+    {
         let items: Vec<ListItem> = docs
             .iter()
             .map(|doc| ListItem::new(doc.to_string()))
@@ -542,7 +614,10 @@ fn save_connection(alias: &str, uri: &str) -> io::Result<()> {
     writeln!(file, "{}|{}", alias, uri)
 }
 
-fn delete_connection(connections: &[(String, String)], alias: &str) -> io::Result<Vec<(String, String)>> {
+fn delete_connection(
+    connections: &[(String, String)],
+    alias: &str,
+) -> io::Result<Vec<(String, String)>> {
     let remaining: Vec<(String, String)> = connections
         .iter()
         .filter(|(a, _)| a != alias)
@@ -559,18 +634,44 @@ fn delete_connection(connections: &[(String, String)], alias: &str) -> io::Resul
     Ok(remaining)
 }
 
+fn update_connection(
+    connections: &[(String, String)],
+    old_alias: &str,
+    new_alias: &str,
+    new_uri: &str,
+) -> io::Result<Vec<(String, String)>> {
+    let mut updated: Vec<(String, String)> = connections.to_vec();
+    for (alias, uri) in updated.iter_mut() {
+        if alias == old_alias {
+            *alias = new_alias.to_string();
+            *uri = new_uri.to_string();
+            break;
+        }
+    }
+
+    let path = connections_file_path();
+    let mut content = String::new();
+    for (alias, uri) in &updated {
+        content.push_str(&format!("{}|{}\n", alias, uri));
+    }
+    std::fs::write(path, content)?;
+
+    Ok(updated)
+}
+
 fn fetch_documents(app: &App, page: u64) -> Vec<mongodb::bson::Document> {
-    let (Some(client), Some(db), Some(collection)) = (&app.client, &app.database, &app.collection) else {
+    let (Some(client), Some(db), Some(collection)) = (&app.client, &app.database, &app.collection)
+    else {
         return Vec::new();
     };
 
     client
-    .database(db)
-    .collection::<mongodb::bson::Document>(collection)
-    .find(doc! {})
-    .skip(page * PAGE_SIZE)
-    .limit(PAGE_SIZE as i64)
-    .run()
-    .map(|cursor| cursor.filter_map(Result::ok).collect())
-    .unwrap_or_default()
+        .database(db)
+        .collection::<mongodb::bson::Document>(collection)
+        .find(doc! {})
+        .skip(page * PAGE_SIZE)
+        .limit(PAGE_SIZE as i64)
+        .run()
+        .map(|cursor| cursor.filter_map(Result::ok).collect())
+        .unwrap_or_default()
 }
