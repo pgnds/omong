@@ -258,6 +258,17 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                                     }
                                 }
                             }
+                            KeyCode::Char('e') => {
+                                if let Some(i) = app.connections_list_state.selected() {
+                                    let (alias, uri) = &app.saved_connections[i];
+                                    app.overlay = Some(Overlay::AddConnectionPopup {
+                                        alias_buffer: alias.clone(),
+                                        uri_buffer: uri.clone(),
+                                        focus: PopupField::Alias,
+                                        editing_alias: Some(alias.clone()),
+                                    });
+                                }
+                            }
                             _ => {}
                         },
                         Screen::Databases { list_state, names } => match key.code {
