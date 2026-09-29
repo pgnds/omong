@@ -1,3 +1,5 @@
+mod storage;
+
 use std::io;
 
 use crossterm::{
@@ -13,6 +15,8 @@ use ratatui::{
     text::Line,
     widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
+
+use storage::{delete_connection, load_connections, save_connection, update_connection};
 
 use mongodb::bson::doc;
 
@@ -593,81 +597,6 @@ fn render_documents_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
         frame.render_stateful_widget(list, area, list_state);
     }
-}
-
-fn connections_file_path() -> std::path::PathBuf {
-    let home = std::env::var("HOME").expect("HOME not set");
-    std::path::PathBuf::from(home).join(".config/omong/connections")
-}
-
-fn load_connections() -> Vec<(String, String)> {
-    let path = connections_file_path();
-    let content = std::fs::read_to_string(path).unwrap_or_default();
-    content
-        .lines()
-        .filter_map(|line| line.split_once('|'))
-        .map(|(alias, uri)| (alias.to_string(), uri.to_string()))
-        .collect()
-}
-
-fn save_connection(alias: &str, uri: &str) -> io::Result<()> {
-    let path = connections_file_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    use std::io::Write;
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)?;
-
-    writeln!(file, "{}|{}", alias, uri)
-}
-
-fn delete_connection(
-    connections: &[(String, String)],
-    alias: &str,
-) -> io::Result<Vec<(String, String)>> {
-    let remaining: Vec<(String, String)> = connections
-        .iter()
-        .filter(|(a, _)| a != alias)
-        .cloned()
-        .collect();
-
-    let path = connections_file_path();
-    let mut content = String::new();
-    for (a, u) in &remaining {
-        content.push_str(&format!("{}|{}\n", a, u));
-    }
-    std::fs::write(path, content)?;
-
-    Ok(remaining)
-}
-
-fn update_connection(
-    connections: &[(String, String)],
-    old_alias: &str,
-    new_alias: &str,
-    new_uri: &str,
-) -> io::Result<Vec<(String, String)>> {
-    let mut updated: Vec<(String, String)> = connections.to_vec();
-    for (alias, uri) in updated.iter_mut() {
-        if alias == old_alias {
-            *alias = new_alias.to_string();
-            *uri = new_uri.to_string();
-            break;
-        }
-    }
-
-    let path = connections_file_path();
-    let mut content = String::new();
-    for (alias, uri) in &updated {
-        content.push_str(&format!("{}|{}\n", alias, uri));
-    }
-    std::fs::write(path, content)?;
-
-    Ok(updated)
 }
 
 fn fetch_documents(app: &App, page: u64) -> Vec<mongodb::bson::Document> {
