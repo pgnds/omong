@@ -1,3 +1,4 @@
+mod db;
 mod storage;
 
 use std::io;
@@ -17,10 +18,6 @@ use ratatui::{
 };
 
 use storage::{delete_connection, load_connections, save_connection, update_connection};
-
-use mongodb::bson::doc;
-
-const PAGE_SIZE: u64 = 20;
 
 enum PopupField {
     Alias,
@@ -210,35 +207,18 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                             KeyCode::Enter => {
                                 if let Some(i) = app.connections_list_state.selected() {
                                     let (alias, uri) = &app.saved_connections[i];
-                                    match mongodb::sync::Client::with_uri_str(uri.trim()) {
+                                    match db::connect(&uri) {
                                         Ok(client) => {
-                                            match client
-                                                .database("admin")
-                                                .run_command(doc! {"ping": 1})
-                                                .run()
-                                            {
-                                                Ok(_) => {
-                                                    let db_names = client
-                                                        .list_database_names()
-                                                        .run()
-                                                        .unwrap_or_default();
-                                                    app.client = Some(client);
-                                                    app.connection_alias = Some(alias.to_string());
-                                                    app.error_message = None;
-                                                    app.screen = Screen::Databases {
-                                                        list_state: ListState::default(),
-                                                        names: db_names,
-                                                    };
-                                                }
-                                                Err(e) => {
-                                                    app.error_message =
-                                                        Some(format!("ping failed: {}", e));
-                                                }
+                                            let db_names = db::list_databases(&client);
+                                            app.client = Some(client);
+                                            app.connection_alias = Some(alias.to_string());
+                                            app.error_message = None;
+                                            app.screen = Screen::Databases {
+                                                list_state: ListState::default(),
+                                                names: db_names,
                                             }
                                         }
-                                        Err(e) => {
-                                            app.error_message = Some(format!("invalid uri: {}", e));
-                                        }
+                                        Err(e) => app.error_message = Some(e),
                                     }
                                 }
                             }
@@ -298,22 +278,18 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                             }
                             KeyCode::Enter => {
                                 if let Some(i) = list_state.selected() {
-                                    app.database = Some(names[i].clone());
+                                    let db_name = names[i].clone();
 
-                                    if let (Some(client), Some(database_name)) =
-                                        (&app.client, &app.database)
-                                    {
-                                        let collection_names = client
-                                            .database(database_name)
-                                            .list_collection_names()
-                                            .run()
-                                            .unwrap_or_default();
-
+                                    if let Some(client) = &app.client {
+                                        let collection_names =
+                                            db::list_collections(client, &db_name);
                                         app.screen = Screen::Collections {
                                             list_state: ListState::default(),
                                             names: collection_names,
                                         }
                                     };
+
+                                    app.database = Some(db_name);
                                 }
                             }
                             _ => {}
@@ -341,12 +317,19 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                             }
                             KeyCode::Enter => {
                                 if let Some(i) = list_state.selected() {
-                                    app.collection = Some(names[i].clone());
-                                    let docs = fetch_documents(app, 0);
-                                    app.screen = Screen::Documents {
-                                        list_state: ListState::default(),
-                                        docs,
-                                        page: 0,
+                                    let coll_name = names[i].clone();
+                                    if let (Some(client), Some(db_name)) =
+                                        (&app.client, &app.database)
+                                    {
+                                        let docs =
+                                            db::fetch_documents(client, db_name, &coll_name, 0);
+
+                                        app.collection = Some(coll_name);
+                                        app.screen = Screen::Documents {
+                                            list_state: ListState::default(),
+                                            docs,
+                                            page: 0,
+                                        }
                                     }
                                 }
                             }
@@ -597,21 +580,4 @@ fn render_documents_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
         frame.render_stateful_widget(list, area, list_state);
     }
-}
-
-fn fetch_documents(app: &App, page: u64) -> Vec<mongodb::bson::Document> {
-    let (Some(client), Some(db), Some(collection)) = (&app.client, &app.database, &app.collection)
-    else {
-        return Vec::new();
-    };
-
-    client
-        .database(db)
-        .collection::<mongodb::bson::Document>(collection)
-        .find(doc! {})
-        .skip(page * PAGE_SIZE)
-        .limit(PAGE_SIZE as i64)
-        .run()
-        .map(|cursor| cursor.filter_map(Result::ok).collect())
-        .unwrap_or_default()
 }
