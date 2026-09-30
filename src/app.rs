@@ -2,6 +2,8 @@ use mongodb::bson::Document;
 use mongodb::sync::Client;
 use ratatui::widgets::ListState;
 
+use crate::storage::load_connections;
+
 pub enum Screen {
     Connections,
     Databases {
@@ -46,4 +48,20 @@ pub struct App {
     pub connection_alias: Option<String>,
     pub database: Option<String>,
     pub collection: Option<String>,
+}
+
+impl App {
+    pub fn new() -> Self {
+        Self {
+            screen: Screen::Connections,
+            overlay: None,
+            client: None,
+            error_message: None,
+            saved_connections: load_connections(),
+            connections_list_state: ListState::default(),
+            connection_alias: None,
+            database: None,
+            collection: None,
+        }
+    }
 }

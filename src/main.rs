@@ -30,17 +30,7 @@ fn main() -> io::Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     // app
-    let mut app = App {
-        screen: Screen::Connections,
-        overlay: None,
-        client: None,
-        error_message: None,
-        saved_connections: load_connections(),
-        connections_list_state: ListState::default(),
-        connection_alias: None,
-        database: None,
-        collection: None,
-    };
+    let mut app = App::new();
 
     // main loop
     let result = run(&mut terminal, &mut app);
