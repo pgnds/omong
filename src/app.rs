@@ -1,0 +1,49 @@
+use mongodb::bson::Document;
+use mongodb::sync::Client;
+use ratatui::widgets::ListState;
+
+pub enum Screen {
+    Connections,
+    Databases {
+        list_state: ListState,
+        names: Vec<String>,
+    },
+    Collections {
+        list_state: ListState,
+        names: Vec<String>,
+    },
+    Documents {
+        list_state: ListState,
+        docs: Vec<Document>,
+        page: u64,
+    },
+}
+
+pub enum PopupField {
+    Alias,
+    Uri,
+}
+
+pub enum Overlay {
+    AddConnectionPopup {
+        alias_buffer: String,
+        uri_buffer: String,
+        focus: PopupField,
+        editing_alias: Option<String>,
+    },
+}
+
+pub struct App {
+    pub screen: Screen,
+    pub overlay: Option<Overlay>,
+
+    pub client: Option<Client>,
+    pub error_message: Option<String>,
+
+    pub saved_connections: Vec<(String, String)>,
+    pub connections_list_state: ListState,
+
+    pub connection_alias: Option<String>,
+    pub database: Option<String>,
+    pub collection: Option<String>,
+}

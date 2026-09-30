@@ -1,3 +1,4 @@
+mod app;
 mod db;
 mod storage;
 
@@ -17,53 +18,8 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
 
+use app::{App, Overlay, PopupField, Screen};
 use storage::{delete_connection, load_connections, save_connection, update_connection};
-
-enum PopupField {
-    Alias,
-    Uri,
-}
-
-enum Screen {
-    Connections,
-    Databases {
-        list_state: ListState,
-        names: Vec<String>,
-    },
-    Collections {
-        list_state: ListState,
-        names: Vec<String>,
-    },
-    Documents {
-        list_state: ListState,
-        docs: Vec<mongodb::bson::Document>,
-        page: u64,
-    },
-}
-
-enum Overlay {
-    AddConnectionPopup {
-        alias_buffer: String,
-        uri_buffer: String,
-        focus: PopupField,
-        editing_alias: Option<String>,
-    },
-}
-
-pub struct App {
-    screen: Screen,
-    overlay: Option<Overlay>,
-
-    client: Option<mongodb::sync::Client>,
-    error_message: Option<String>,
-
-    saved_connections: Vec<(String, String)>,
-    connections_list_state: ListState,
-
-    connection_alias: Option<String>,
-    database: Option<String>,
-    collection: Option<String>,
-}
 
 fn main() -> io::Result<()> {
     // terminal setup
