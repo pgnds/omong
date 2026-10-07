@@ -1,10 +1,24 @@
+use std::time::Duration;
+
 use mongodb::bson::{Document, doc};
+use mongodb::options::ClientOptions;
 use mongodb::sync::Client;
 
 pub const PAGE_SIZE: u64 = 20;
 
 pub fn connect(uri: &str) -> Result<Client, String> {
-    let client = Client::with_uri_str(uri.trim()).map_err(|e| format!("invalid uir: {}", e))?;
+    let mut options = ClientOptions::parse(uri.trim())
+        .run()
+        .map_err(|e| format!("invalid uri: {}", e))?;
+
+    options
+        .server_selection_timeout
+        .get_or_insert(Duration::from_secs(3));
+    options
+        .connect_timeout
+        .get_or_insert(Duration::from_secs(3));
+
+    let client = Client::with_options(options).map_err(|e| format!("connection error: {}", e))?;
     client
         .database("admin")
         .run_command(doc! {"ping": 1})
