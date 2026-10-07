@@ -1,6 +1,7 @@
 mod app;
 mod db;
 mod event;
+mod handlers;
 mod storage;
 mod ui;
 
