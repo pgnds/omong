@@ -28,6 +28,13 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             }
             app.database = Some(db_name);
         }
+        KeyCode::Esc => {
+            app.client = None;
+            app.database = None;
+            app.collection = None;
+            app.error_message = None;
+            app.screen = Screen::Connections;
+        }
         _ => {}
     }
 }

@@ -4,6 +4,8 @@ use super::{select_next, select_prev};
 use crate::app::{App, Screen};
 use crate::db;
 
+use ratatui::widgets::ListState;
+
 pub fn handle(app: &mut App, key: KeyEvent) {
     let Screen::Documents {
         list_state,
@@ -39,6 +41,27 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                 *page = prev;
                 list_state.select(Some(0));
             }
+        }
+        KeyCode::Esc => {
+            let (Some(client), Some(db_name)) = (&app.client, &app.database) else {
+                return;
+            };
+            let coll_names = db::list_collections(client, db_name);
+
+            let mut state = ListState::default();
+            if let Some(pos) = app
+                .collection
+                .as_ref()
+                .and_then(|c| coll_names.iter().position(|n| n == c))
+            {
+                state.select(Some(pos));
+            }
+
+            app.screen = Screen::Collections {
+                list_state: state,
+                names: coll_names,
+            };
+            app.collection = None;
         }
         _ => {}
     }

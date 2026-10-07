@@ -29,6 +29,28 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             }
             app.collection = Some(collection_name);
         }
+        KeyCode::Esc => {
+            let Some(client) = &app.client else {
+                return;
+            };
+            let db_names = db::list_databases(client);
+
+            let mut state = ListState::default();
+            if let Some(pos) = app
+                .database
+                .as_ref()
+                .and_then(|d| db_names.iter().position(|n| n == d))
+            {
+                state.select(Some(pos));
+            }
+
+            app.screen = Screen::Databases {
+                list_state: state,
+                names: db_names,
+            };
+            app.database = None;
+            app.collection = None;
+        }
         _ => {}
     }
 }
