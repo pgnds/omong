@@ -3,6 +3,7 @@ mod db;
 mod event;
 mod handlers;
 mod storage;
+mod tree;
 mod ui;
 
 use std::io;
@@ -59,6 +60,7 @@ fn ui(frame: &mut Frame, app: &mut App) {
         Screen::Databases { .. } => ui::databases::render(frame, main_area, app),
         Screen::Collections { .. } => ui::collections::render(frame, main_area, app),
         Screen::Documents { .. } => ui::documents::render(frame, main_area, app),
+        Screen::Detail { .. } => ui::detail::render(frame, main_area, app),
     }
 
     ui::status_bar::render(frame, status_area, app);

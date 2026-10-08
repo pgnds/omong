@@ -32,6 +32,7 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
             Screen::Databases { .. } => handlers::databases::handle(app, key),
             Screen::Collections { .. } => handlers::collections::handle(app, key),
             Screen::Documents { .. } => handlers::documents::handle(app, key),
+            Screen::Detail { .. } => handlers::detail::handle(app, key),
         }
     }
     Ok(())

@@ -1,0 +1,95 @@
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::widgets::ListState;
+
+use super::{select_next, select_prev};
+use crate::app::{App, Screen};
+use crate::tree::{self, TreeLine};
+
+pub fn handle(app: &mut App, key: KeyEvent) {
+    if key.code == KeyCode::Esc {
+        let current = std::mem::replace(&mut app.screen, Screen::Connections);
+        match current {
+            Screen::Detail { back, .. } => app.screen = *back,
+            other => app.screen = other,
+        }
+        return;
+    }
+
+    let Screen::Detail {
+        doc,
+        expanded,
+        list_state,
+        ..
+    } = &mut app.screen
+    else {
+        return;
+    };
+
+    let lines = tree::flatten(doc, expanded);
+    let current = list_state
+        .selected()
+        .and_then(|i| lines.get(i))
+        .map(|l| (l.path.clone(), l.is_container, l.expanded));
+
+    let mut changed = false;
+    match key.code {
+        KeyCode::Down => select_next(list_state, lines.len()),
+        KeyCode::Up => select_prev(list_state, lines.len()),
+        KeyCode::Enter => {
+            if let Some((path, true, open)) = &current {
+                if *open {
+                    expanded.remove(path);
+                } else {
+                    expanded.insert(path.clone());
+                }
+                changed = true;
+            }
+        }
+        KeyCode::Right => {
+            if let Some((path, true, false)) = &current {
+                expanded.insert(path.clone());
+                changed = true;
+            }
+        }
+        KeyCode::Left => {
+            if let Some((path, true, true)) = &current {
+                expanded.remove(path);
+                changed = true;
+            }
+        }
+        KeyCode::Char('+') => {
+            *expanded = tree::all_container_paths(doc);
+            changed = true;
+        }
+        KeyCode::Char('-') => {
+            expanded.clear();
+            changed = true;
+        }
+        _ => {}
+    }
+
+    if changed {
+        if let Some((path, _, _)) = current {
+            let new_lines = tree::flatten(doc, expanded);
+            reselect(&new_lines, list_state, path);
+        }
+    }
+}
+
+// after the visible lines change, put the cursor back to the same field.
+// if that field is now hidden, fall back to it's closest visible ancestor.
+fn reselect(lines: &[TreeLine], list_state: &mut ListState, mut path: String) {
+    loop {
+        if let Some(pos) = lines.iter().position(|l| l.path == path) {
+            list_state.select(Some(pos));
+            return;
+        }
+        match path.rfind('.') {
+            Some(p) => path.truncate(p),
+            None => {
+                list_state.select(if lines.is_empty() { None } else { Some(0) });
+                return;
+            }
+        }
+    }
+}

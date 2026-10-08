@@ -1,6 +1,7 @@
 use mongodb::bson::Document;
 use mongodb::sync::Client;
 use ratatui::widgets::ListState;
+use std::collections::HashSet;
 
 use crate::storage::load_connections;
 
@@ -18,6 +19,12 @@ pub enum Screen {
         list_state: ListState,
         docs: Vec<Document>,
         page: u64,
+    },
+    Detail {
+        doc: Document,
+        expanded: HashSet<String>,
+        list_state: ListState,
+        back: Box<Screen>,
     },
 }
 

@@ -1,10 +1,11 @@
-use crossterm::event::{KeyCode, KeyEvent};
-
 use super::{select_next, select_prev};
+
 use crate::app::{App, Screen};
 use crate::db;
 
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
+use std::collections::HashSet;
 
 pub fn handle(app: &mut App, key: KeyEvent) {
     let Screen::Documents {
@@ -62,6 +63,20 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                 names: coll_names,
             };
             app.collection = None;
+        }
+        KeyCode::Enter => {
+            let Some(i) = list_state.selected() else {
+                return;
+            };
+            let doc = docs[i].clone();
+
+            let previous = std::mem::replace(&mut app.screen, Screen::Connections);
+            app.screen = Screen::Detail {
+                doc,
+                expanded: HashSet::new(),
+                list_state: ListState::default().with_selected(Some(0)),
+                back: Box::new(previous),
+            };
         }
         _ => {}
     }
