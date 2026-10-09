@@ -46,7 +46,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let list = List::new(items)
         .block(
             Block::default()
-                .title("Document (←/→ collapse/expand, +/- all, Esc back)")
+                .title("Document (←/→ collapse/expand, +/- all, e edit, Esc back)")
                 .borders(Borders::ALL)
                 .border_type(BorderType::Thick),
         )

@@ -55,6 +55,8 @@ pub struct App {
     pub connection_alias: Option<String>,
     pub database: Option<String>,
     pub collection: Option<String>,
+
+    pub edit_requested: bool,
 }
 
 impl App {
@@ -69,6 +71,7 @@ impl App {
             connection_alias: None,
             database: None,
             collection: None,
+            edit_requested: false,
         }
     }
 }

@@ -5,6 +5,12 @@ use super::{select_next, select_prev};
 use crate::app::{App, Screen};
 use crate::tree::{self, TreeLine};
 
+use mongodb::bson::{Bson, Document};
+use ratatui::{Terminal, backend::CrosstermBackend};
+use std::io;
+
+use crate::{db, editor};
+
 pub fn handle(app: &mut App, key: KeyEvent) {
     if key.code == KeyCode::Esc {
         let current = std::mem::replace(&mut app.screen, Screen::Connections);
@@ -65,6 +71,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             expanded.clear();
             changed = true;
         }
+        KeyCode::Char('e') => app.edit_requested = true,
         _ => {}
     }
 
@@ -91,5 +98,71 @@ fn reselect(lines: &[TreeLine], list_state: &mut ListState, mut path: String) {
                 return;
             }
         }
+    }
+}
+
+pub fn edit(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) {
+    let Screen::Detail { doc, .. } = &app.screen else {
+        return;
+    };
+    let original = doc.clone();
+
+    let (Some(client), Some(db_name), Some(coll_name)) = (
+        app.client.clone(),
+        app.database.clone(),
+        app.collection.clone(),
+    ) else {
+        return;
+    };
+
+    let initial = match serde_json::to_string_pretty(
+        &Bson::Document(original.clone()).into_relaxed_extjson(),
+    ) {
+        Ok(s) => s,
+        Err(e) => {
+            app.error_message = Some(format!("could not serialize document: {}", e));
+            return;
+        }
+    };
+
+    let edited_text = match editor::edit_text(terminal, &initial) {
+        Ok(Some(text)) => text,
+        Ok(None) => return,
+        Err(e) => {
+            app.error_message = Some(e);
+            return;
+        }
+    };
+
+    let edited: Document = match serde_json::from_str(&edited_text) {
+        Ok(d) => d,
+        Err(e) => {
+            let recover = std::env::temp_dir().join("omong-last-edit.json");
+            let _ = std::fs::write(&recover, &edited_text);
+            app.error_message = Some(format!(
+                "invalid JSON ({}), your edit is saved in {}",
+                e,
+                recover.display()
+            ));
+            return;
+        }
+    };
+
+    match db::replace_document(&client, &db_name, &coll_name, &original, edited.clone()) {
+        Ok(()) => {
+            app.error_message = None;
+            if let Screen::Detail { doc, back, .. } = &mut app.screen {
+                if let Screen::Documents {
+                    docs, list_state, ..
+                } = back.as_mut()
+                {
+                    if let Some(i) = list_state.selected() {
+                        docs[i] = edited.clone();
+                    }
+                }
+                *doc = edited;
+            }
+        }
+        Err(e) => app.error_message = Some(format!("updated failed: {}", e)),
     }
 }

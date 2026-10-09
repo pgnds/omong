@@ -1519,6 +1519,7 @@ dependencies = [
  "crossterm",
  "mongodb",
  "ratatui",
+ "serde_json",
  "tokio",
 ]
 

@@ -34,6 +34,11 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
             Screen::Documents { .. } => handlers::documents::handle(app, key),
             Screen::Detail { .. } => handlers::detail::handle(app, key),
         }
+
+        if app.edit_requested {
+            app.edit_requested = false;
+            handlers::detail::edit(terminal, app);
+        }
     }
     Ok(())
 }

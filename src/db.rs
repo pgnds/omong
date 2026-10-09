@@ -50,3 +50,27 @@ pub fn fetch_documents(client: &Client, db: &str, coll: &str, page: u64) -> Vec<
         .map(|cursor| cursor.filter_map(Result::ok).collect())
         .unwrap_or_default()
 }
+
+pub fn replace_document(
+    client: &Client,
+    db: &str,
+    coll: &str,
+    original: &Document,
+    edited: Document,
+) -> Result<(), String> {
+    let id = original.get("_id").ok_or("document has no _id")?.clone();
+
+    client
+        .database(db)
+        .collection::<Document>(coll)
+        .replace_one(doc! {"_id": id}, edited)
+        .run()
+        .map_err(|e| e.to_string())
+        .and_then(|r| {
+            if r.matched_count == 0 {
+                Err("document no longer exists".to_string())
+            } else {
+                Ok(())
+            }
+        })
+}
