@@ -12,6 +12,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         list_state,
         docs,
         page,
+        ..
     } = &mut app.screen
     {
         let items: Vec<ListItem> = docs

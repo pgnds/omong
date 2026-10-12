@@ -19,6 +19,7 @@ pub enum Screen {
         list_state: ListState,
         docs: Vec<Document>,
         page: u64,
+        filter: Filter,
     },
     Detail {
         doc: Document,
@@ -39,6 +40,9 @@ pub enum Overlay {
         uri_buffer: String,
         focus: PopupField,
         editing_alias: Option<String>,
+    },
+    FilterPrompt {
+        input: String,
     },
 }
 
@@ -74,4 +78,10 @@ impl App {
             edit_requested: false,
         }
     }
+}
+
+#[derive(Default)]
+pub struct Filter {
+    pub text: String,
+    pub doc: Document,
 }

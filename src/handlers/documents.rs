@@ -1,7 +1,9 @@
 use super::{select_next, select_prev};
 
-use crate::app::{App, Screen};
+use crate::app::{App, Filter, Overlay, Screen};
 use crate::db;
+
+use mongodb::bson::Document;
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
@@ -12,6 +14,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
         list_state,
         docs,
         page,
+        filter,
     } = &mut app.screen
     else {
         return;
@@ -25,7 +28,8 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             if let (Some(client), Some(db_name), Some(coll)) =
                 (&app.client, &app.database, &app.collection)
             {
-                let new_docs = db::fetch_documents(client, db_name, coll, next);
+                let new_docs = db::fetch_documents(client, db_name, coll, &filter.doc, next)
+                    .unwrap_or_default();
                 if !new_docs.is_empty() {
                     *page = next;
                     *docs = new_docs;
@@ -38,9 +42,25 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             if let (Some(client), Some(db_name), Some(coll)) =
                 (&app.client, &app.database, &app.collection)
             {
-                *docs = db::fetch_documents(client, db_name, coll, prev);
+                *docs = db::fetch_documents(client, db_name, coll, &filter.doc, prev)
+                    .unwrap_or_default();
                 *page = prev;
                 list_state.select(Some(0));
+            }
+        }
+        KeyCode::Esc if !filter.text.is_empty() => {
+            if let (Some(client), Some(db_name), Some(coll)) =
+                (&app.client, &app.database, &app.collection)
+            {
+                match db::fetch_documents(client, db_name, coll, &Document::new(), 0) {
+                    Ok(new_docs) => {
+                        *docs = new_docs;
+                        *filter = Filter::default();
+                        *page = 0;
+                        list_state.select(if docs.is_empty() { None } else { Some(0) });
+                    }
+                    Err(e) => app.error_message = Some(e),
+                }
             }
         }
         KeyCode::Esc => {
@@ -77,6 +97,11 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                 list_state: ListState::default().with_selected(Some(0)),
                 back: Box::new(previous),
             };
+        }
+        KeyCode::Char('/') => {
+            app.overlay = Some(Overlay::FilterPrompt {
+                input: filter.text.clone(),
+            });
         }
         _ => {}
     }

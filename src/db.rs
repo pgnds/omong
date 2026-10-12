@@ -39,16 +39,32 @@ pub fn list_collections(client: &Client, db: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub fn fetch_documents(client: &Client, db: &str, coll: &str, page: u64) -> Vec<Document> {
-    client
+pub fn parse_filter(text: &str) -> Result<Document, String> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(Document::new());
+    }
+    serde_json::from_str::<Document>(text).map_err(|e| e.to_string())
+}
+
+pub fn fetch_documents(
+    client: &Client,
+    db: &str,
+    coll: &str,
+    filter: &Document,
+    page: u64,
+) -> Result<Vec<Document>, String> {
+    let cursor = client
         .database(db)
         .collection::<Document>(coll)
-        .find(doc! {})
+        .find(filter.clone())
+        .sort(doc! {"_id": 1})
         .skip(page * PAGE_SIZE)
         .limit(PAGE_SIZE as i64)
         .run()
-        .map(|cursor| cursor.filter_map(Result::ok).collect())
-        .unwrap_or_default()
+        .map_err(|e| e.to_string())?;
+
+    Ok(cursor.filter_map(Result::ok).collect())
 }
 
 pub fn replace_document(
