@@ -1,14 +1,15 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::app::{App, Filter, Overlay, PopupField, Screen};
+use crate::app::{App, ConfirmAction, Filter, Overlay, PopupField, Screen};
 use crate::db;
-use crate::storage::{load_connections, save_connection, update_connection};
+use crate::storage::{delete_connection, load_connections, save_connection, update_connection};
 
 pub fn handle(app: &mut App, key: KeyEvent) {
-    if matches!(app.overlay, Some(Overlay::FilterPrompt { .. })) {
-        handle_filter(app, key);
-    } else {
-        handle_add_connection(app, key);
+    match app.overlay {
+        Some(Overlay::FilterPrompt { .. }) => handle_filter(app, key),
+        Some(Overlay::Confirm { .. }) => handle_confirm(app, key),
+        Some(Overlay::AddConnectionPopup { .. }) => handle_add_connection(app, key),
+        None => {}
     }
 }
 
@@ -145,4 +146,39 @@ fn apply_filter(app: &mut App, text: String) {
     }
     app.overlay = None;
     app.error_message = None;
+}
+
+fn handle_confirm(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') => {
+            let Some(Overlay::Confirm { action, .. }) = app.overlay.take() else {
+                return;
+            };
+            run_confirmed(app, action);
+        }
+        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => app.overlay = None,
+        _ => {}
+    }
+}
+
+fn run_confirmed(app: &mut App, action: ConfirmAction) {
+    match action {
+        ConfirmAction::DeleteConnection { alias } => {
+            match delete_connection(&app.saved_connections, &alias) {
+                Ok(connections) => {
+                    app.saved_connections = connections;
+
+                    let len = app.saved_connections.len();
+                    if len == 0 {
+                        app.connections_list_state.select(None);
+                    } else if let Some(i) = app.connections_list_state.selected()
+                        && i > len
+                    {
+                        app.connections_list_state.select(Some(len - 1));
+                    }
+                }
+                Err(e) => app.error_message = Some(format!("failed to delete connection: {}", e)),
+            }
+        }
+    }
 }

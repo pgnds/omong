@@ -1,7 +1,8 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Flex, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Flex, Layout, Rect},
     style::{Color, Style},
+    text::{Line, Span, Text},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
@@ -24,6 +25,14 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 }
 
 pub fn render(frame: &mut Frame, app: &App) {
+    match &app.overlay {
+        Some(Overlay::AddConnectionPopup { .. }) => render_add_connection(frame, app),
+        Some(Overlay::Confirm { message, .. }) => render_confirm(frame, message),
+        Some(Overlay::FilterPrompt { .. }) | None => {}
+    }
+}
+
+fn render_add_connection(frame: &mut Frame, app: &App) {
     let Some(Overlay::AddConnectionPopup {
         alias_buffer,
         uri_buffer,
@@ -73,4 +82,30 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     frame.render_widget(alias_line, fields[0]);
     frame.render_widget(uri_line, fields[1]);
+}
+
+fn render_confirm(frame: &mut Frame, message: &str) {
+    let area = centered_rect(50, 5, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title("Confirm")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Thick)
+        .border_style(Style::default().fg(Color::Red))
+        .style(Style::default().bg(Color::Black));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let text = Text::from(vec![
+        Line::from(message.to_string()),
+        Line::from(""),
+        Line::from(Span::styled(
+            "y: yes    n / Esc: no",
+            Style::default().fg(Color::Yellow),
+        )),
+    ]);
+
+    frame.render_widget(Paragraph::new(text).alignment(Alignment::Center), inner);
 }

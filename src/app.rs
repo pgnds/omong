@@ -34,6 +34,10 @@ pub enum PopupField {
     Uri,
 }
 
+pub enum ConfirmAction {
+    DeleteConnection { alias: String },
+}
+
 pub enum Overlay {
     AddConnectionPopup {
         alias_buffer: String,
@@ -43,6 +47,10 @@ pub enum Overlay {
     },
     FilterPrompt {
         input: String,
+    },
+    Confirm {
+        message: String,
+        action: ConfirmAction,
     },
 }
 

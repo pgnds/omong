@@ -2,9 +2,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::widgets::ListState;
 
 use super::{select_next, select_prev};
-use crate::app::{App, Overlay, PopupField, Screen};
+use crate::app::{App, ConfirmAction, Overlay, PopupField, Screen};
 use crate::db;
-use crate::storage::delete_connection;
 
 pub fn handle(app: &mut App, key: KeyEvent) {
     match key.code {
@@ -32,18 +31,10 @@ pub fn handle(app: &mut App, key: KeyEvent) {
         KeyCode::Char('d') | KeyCode::Char('D') => {
             if let Some(i) = app.connections_list_state.selected() {
                 let alias = app.saved_connections[i].0.clone();
-                match delete_connection(&app.saved_connections, &alias) {
-                    Ok(connections) => {
-                        app.saved_connections = connections;
-                        let len = app.saved_connections.len();
-                        if len == 0 {
-                            app.connections_list_state.select(None);
-                        } else {
-                            app.connections_list_state.select(Some(len - 1));
-                        }
-                    }
-                    Err(e) => app.error_message = Some(format!("failed to deleted: {}", e)),
-                }
+                app.overlay = Some(Overlay::Confirm {
+                    message: format!("delete connection '{}'?", alias),
+                    action: ConfirmAction::DeleteConnection { alias },
+                });
             }
         }
         KeyCode::Enter => {
