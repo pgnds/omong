@@ -85,10 +85,9 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             app.collection = None;
         }
         KeyCode::Enter => {
-            let Some(i) = list_state.selected() else {
+            let Some(doc) = list_state.selected().and_then(|i| docs.get(i)).cloned() else {
                 return;
             };
-            let doc = docs[i].clone();
 
             let previous = std::mem::replace(&mut app.screen, Screen::Connections);
             app.screen = Screen::Detail {
