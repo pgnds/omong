@@ -1,7 +1,7 @@
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Flex, Layout, Rect},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
@@ -27,7 +27,11 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 pub fn render(frame: &mut Frame, app: &App) {
     match &app.overlay {
         Some(Overlay::AddConnectionPopup { .. }) => render_add_connection(frame, app),
-        Some(Overlay::Confirm { message, .. }) => render_confirm(frame, message),
+        Some(Overlay::Confirm {
+            message,
+            yes_selected,
+            ..
+        }) => render_confirm(frame, message, *yes_selected),
         Some(Overlay::FilterPrompt { .. }) | None => {}
     }
 }
@@ -84,8 +88,8 @@ fn render_add_connection(frame: &mut Frame, app: &App) {
     frame.render_widget(uri_line, fields[1]);
 }
 
-fn render_confirm(frame: &mut Frame, message: &str) {
-    let area = centered_rect(50, 5, frame.area());
+fn render_confirm(frame: &mut Frame, message: &str, yes_selected: bool) {
+    let area = centered_rect(50, 10, frame.area());
     frame.render_widget(Clear, area);
 
     let block = Block::default()
@@ -98,13 +102,22 @@ fn render_confirm(frame: &mut Frame, message: &str) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
+    let selected = Style::default()
+        .bg(Color::Yellow)
+        .fg(Color::Black)
+        .add_modifier(Modifier::BOLD);
+    let normal = Style::default().fg(Color::White);
+
+    let buttons = Line::from(vec![
+        Span::styled("  Yes  ", if yes_selected { selected } else { normal }),
+        Span::raw("    "),
+        Span::styled("  No  ", if yes_selected { normal } else { selected }),
+    ]);
+
     let text = Text::from(vec![
         Line::from(message.to_string()),
         Line::from(""),
-        Line::from(Span::styled(
-            "y: yes    n / Esc: no",
-            Style::default().fg(Color::Yellow),
-        )),
+        buttons,
     ]);
 
     frame.render_widget(Paragraph::new(text).alignment(Alignment::Center), inner);

@@ -149,15 +149,30 @@ fn apply_filter(app: &mut App, text: String) {
 }
 
 fn handle_confirm(app: &mut App, key: KeyEvent) {
+    let Some(Overlay::Confirm { yes_selected, .. }) = &mut app.overlay else {
+        return;
+    };
+
     match key.code {
-        KeyCode::Char('y') | KeyCode::Char('Y') => {
-            let Some(Overlay::Confirm { action, .. }) = app.overlay.take() else {
-                return;
-            };
-            run_confirmed(app, action);
+        KeyCode::Left | KeyCode::Right | KeyCode::Tab | KeyCode::Char('h') | KeyCode::Char('l') => {
+            *yes_selected = !*yes_selected
         }
+        KeyCode::Enter => {
+            if *yes_selected {
+                confirm(app);
+            } else {
+                app.overlay = None;
+            }
+        }
+        KeyCode::Char('y') | KeyCode::Char('Y') => confirm(app),
         KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => app.overlay = None,
         _ => {}
+    }
+}
+
+fn confirm(app: &mut App) {
+    if let Some(Overlay::Confirm { action, .. }) = app.overlay.take() {
+        run_confirmed(app, action);
     }
 }
 

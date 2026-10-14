@@ -34,6 +34,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                 app.overlay = Some(Overlay::Confirm {
                     message: format!("delete connection '{}'?", alias),
                     action: ConfirmAction::DeleteConnection { alias },
+                    yes_selected: false,
                 });
             }
         }

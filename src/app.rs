@@ -51,6 +51,7 @@ pub enum Overlay {
     Confirm {
         message: String,
         action: ConfirmAction,
+        yes_selected: bool,
     },
 }
 
