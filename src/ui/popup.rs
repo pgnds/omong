@@ -8,10 +8,10 @@ use ratatui::{
 
 use crate::app::{App, Overlay, PopupField};
 
-fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+fn centered_rect(percent_x: u16, height: u16, area: Rect) -> Rect {
     let vertical = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(percent_y)])
+        .constraints([Constraint::Length(height)])
         .flex(Flex::Center)
         .split(area);
 
@@ -89,7 +89,7 @@ fn render_add_connection(frame: &mut Frame, app: &App) {
 }
 
 fn render_confirm(frame: &mut Frame, message: &str, yes_selected: bool) {
-    let area = centered_rect(50, 10, frame.area());
+    let area = centered_rect(50, 5, frame.area());
     frame.render_widget(Clear, area);
 
     let block = Block::default()
