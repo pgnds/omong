@@ -195,5 +195,49 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                 Err(e) => app.error_message = Some(format!("failed to delete connection: {}", e)),
             }
         }
+        ConfirmAction::DeleteDocument { id } => {
+            let (Some(client), Some(db_name), Some(coll)) =
+                (&app.client, &app.database, &app.collection)
+            else {
+                return;
+            };
+
+            if let Err(e) = db::delete_document(client, db_name, coll, &id) {
+                app.error_message = Some(format!("failed to delete document: {}", e));
+                return;
+            }
+
+            let Screen::Documents {
+                docs,
+                list_state,
+                page,
+                filter,
+            } = &mut app.screen
+            else {
+                return;
+            };
+
+            let mut new_page = *page;
+            let mut result = db::fetch_documents(client, db_name, coll, &filter.doc, new_page);
+
+            if matches!(&result, Ok(d) if d.is_empty()) && new_page > 0 {
+                new_page -= 1;
+                result = db::fetch_documents(client, db_name, coll, &filter.doc, new_page);
+            }
+
+            match result {
+                Ok(new_docs) => {
+                    let selected = list_state.selected().unwrap_or(0);
+                    *docs = new_docs;
+                    *page = new_page;
+                    if docs.is_empty() {
+                        list_state.select(None);
+                    } else {
+                        list_state.select(Some(selected.min(docs.len() - 1)));
+                    }
+                }
+                Err(e) => app.error_message = Some(format!("document reload failed: {}", e)),
+            }
+        }
     }
 }

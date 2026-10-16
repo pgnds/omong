@@ -1,4 +1,4 @@
-use mongodb::bson::Document;
+use mongodb::bson::{Bson, Document};
 use mongodb::sync::Client;
 use ratatui::widgets::ListState;
 use std::collections::HashSet;
@@ -36,6 +36,7 @@ pub enum PopupField {
 
 pub enum ConfirmAction {
     DeleteConnection { alias: String },
+    DeleteDocument { id: Bson },
 }
 
 pub enum Overlay {

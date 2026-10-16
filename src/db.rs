@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use mongodb::bson::{Document, doc};
+use mongodb::bson::{Bson, Document, doc};
 use mongodb::options::ClientOptions;
 use mongodb::sync::Client;
 
@@ -89,4 +89,19 @@ pub fn replace_document(
                 Ok(())
             }
         })
+}
+
+pub fn delete_document(client: &Client, db: &str, coll: &str, id: &Bson) -> Result<(), String> {
+    let result = client
+        .database(db)
+        .collection::<Document>(coll)
+        .delete_one(doc! {"_id": id.clone()})
+        .run()
+        .map_err(|e| e.to_string())?;
+
+    if result.deleted_count == 0 {
+        Err("document no longer exists".to_string())
+    } else {
+        Ok(())
+    }
 }

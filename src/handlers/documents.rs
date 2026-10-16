@@ -1,9 +1,9 @@
 use super::{select_next, select_prev};
 
-use crate::app::{App, Filter, Overlay, Screen};
+use crate::app::{App, ConfirmAction, Filter, Overlay, Screen};
 use crate::db;
 
-use mongodb::bson::Document;
+use mongodb::bson::{Bson, Document};
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
@@ -102,6 +102,34 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                 input: filter.text.clone(),
             });
         }
+        KeyCode::Char('d') | KeyCode::Char('D') => {
+            let Some(id) = list_state
+                .selected()
+                .and_then(|i| docs.get(i))
+                .and_then(|d| d.get("_id"))
+                .cloned()
+            else {
+                return;
+            };
+
+            app.overlay = Some(Overlay::Confirm {
+                message: format!("delete document '{}'?", id_label(&id)),
+                action: ConfirmAction::DeleteDocument { id },
+                yes_selected: false,
+            });
+        }
         _ => {}
+    }
+}
+
+fn id_label(id: &Bson) -> String {
+    match id {
+        Bson::ObjectId(oid) => oid.to_hex(),
+        Bson::String(s) => s.clone(),
+        Bson::Binary(b) => {
+            let hex: String = b.bytes.iter().map(|byte| format!("{:02x}", byte)).collect();
+            format!("binary({:?}) {}", b.subtype, hex)
+        }
+        other => other.to_string(),
     }
 }
