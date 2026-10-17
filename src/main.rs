@@ -24,6 +24,7 @@ use app::{App, Screen};
 
 fn main() -> io::Result<()> {
     // terminal setup
+    install_panic_hook();
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -69,4 +70,13 @@ fn ui(frame: &mut Frame, app: &mut App) {
     if app.overlay.is_some() {
         ui::popup::render(frame, app);
     }
+}
+
+fn install_panic_hook() {
+    let original = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen, crossterm::cursor::Show);
+        original(info);
+    }));
 }
