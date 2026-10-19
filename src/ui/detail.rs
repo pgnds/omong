@@ -25,8 +25,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         .iter()
         .map(|l| {
             let marker = match (l.is_container, l.expanded) {
-                (true, true) => "▾ ",
-                (true, false) => "▸ ",
+                (true, true) => "- ",
+                (true, false) => "+ ",
                 (false, _) => "  ",
             };
             let prefix = format!("{}{}", "  ".repeat(l.depth), marker);

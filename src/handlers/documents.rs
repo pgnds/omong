@@ -1,6 +1,6 @@
 use super::{select_next, select_prev};
 
-use crate::app::{App, ConfirmAction, Filter, Overlay, Screen};
+use crate::app::{App, ConfirmAction, EditRequest, Filter, Overlay, Screen};
 use crate::db;
 
 use mongodb::bson::{Bson, Document};
@@ -117,6 +117,9 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                 action: ConfirmAction::DeleteDocument { id },
                 yes_selected: false,
             });
+        }
+        KeyCode::Char('i') | KeyCode::Char('I') => {
+            app.edit_requested = Some(EditRequest::Insert {});
         }
         _ => {}
     }

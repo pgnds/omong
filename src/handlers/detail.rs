@@ -2,10 +2,10 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
 use super::{select_next, select_prev};
-use crate::app::{App, Screen};
+use crate::app::{App, EditRequest, Screen};
 use crate::tree::{self, TreeLine};
 
-use mongodb::bson::{Bson, Document};
+use mongodb::bson::Document;
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
 
@@ -71,7 +71,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             expanded.clear();
             changed = true;
         }
-        KeyCode::Char('e') => app.edit_requested = true,
+        KeyCode::Char('e') => app.edit_requested = Some(EditRequest::Update { doc: doc.clone() }),
         _ => {}
     }
 
@@ -101,12 +101,11 @@ fn reselect(lines: &[TreeLine], list_state: &mut ListState, mut path: String) {
     }
 }
 
-pub fn edit(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) {
-    let Screen::Detail { doc, .. } = &app.screen else {
-        return;
-    };
-    let original = doc.clone();
-
+pub fn edit(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App,
+    original: Document,
+) {
     let (Some(client), Some(db_name), Some(coll_name)) = (
         app.client.clone(),
         app.database.clone(),
@@ -115,35 +114,11 @@ pub fn edit(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App
         return;
     };
 
-    let initial = match serde_json::to_string_pretty(
-        &Bson::Document(original.clone()).into_relaxed_extjson(),
-    ) {
-        Ok(s) => s,
-        Err(e) => {
-            app.error_message = Some(format!("could not serialize document: {}", e));
-            return;
-        }
-    };
-
-    let edited_text = match editor::edit_text(terminal, &initial) {
-        Ok(Some(text)) => text,
+    let edited = match editor::edit(terminal, &original) {
+        Ok(Some(doc)) => doc,
         Ok(None) => return,
         Err(e) => {
             app.error_message = Some(e);
-            return;
-        }
-    };
-
-    let edited: Document = match serde_json::from_str(&edited_text) {
-        Ok(d) => d,
-        Err(e) => {
-            let recover = std::env::temp_dir().join("omong-last-edit.json");
-            let _ = std::fs::write(&recover, &edited_text);
-            app.error_message = Some(format!(
-                "invalid JSON ({}), your edit is saved in {}",
-                e,
-                recover.display()
-            ));
             return;
         }
     };

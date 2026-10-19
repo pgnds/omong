@@ -5,7 +5,46 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use mongodb::bson::{Bson, Document};
 use ratatui::{Terminal, backend::CrosstermBackend};
+
+use crate::editor;
+
+pub fn edit(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    original: &Document,
+) -> Result<Option<Document>, String> {
+    let initial = match serde_json::to_string_pretty(
+        &Bson::Document(original.clone()).into_relaxed_extjson(),
+    ) {
+        Ok(s) => s,
+        Err(e) => {
+            return Err(format!("could not serialize document: {}", e));
+        }
+    };
+
+    let edited_text = match editor::edit_text(terminal, &initial) {
+        Ok(Some(text)) => text,
+        Ok(None) => return Ok(None),
+        Err(e) => {
+            return Err(e);
+        }
+    };
+
+    let edited: Document = match serde_json::from_str(&edited_text) {
+        Ok(d) => d,
+        Err(e) => {
+            let recover = std::env::temp_dir().join("omong-last-edit.json");
+            let _ = std::fs::write(&recover, &edited_text);
+            return Err(format!(
+                "invalid JSON ({}), your edit is saved in {}",
+                e,
+                recover.display()
+            ));
+        }
+    };
+    Ok(Some(edited))
+}
 
 /// opens `initial` in $EDITOR. Ok(None) means nothing changed.
 pub fn edit_text(

@@ -3,7 +3,7 @@ use std::io;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{Terminal, backend::CrosstermBackend};
 
-use crate::app::{App, Screen};
+use crate::app::{App, EditRequest, Screen};
 use crate::handlers;
 use crate::ui;
 
@@ -37,9 +37,11 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
             Screen::Detail { .. } => handlers::detail::handle(app, key),
         }
 
-        if app.edit_requested {
-            app.edit_requested = false;
-            handlers::detail::edit(terminal, app);
+        if let Some(request) = app.edit_requested.take() {
+            match request {
+                EditRequest::Update { doc } => handlers::detail::edit(terminal, app, doc),
+                EditRequest::Insert => {}
+            }
         }
     }
     Ok(())
