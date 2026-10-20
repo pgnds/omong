@@ -1,13 +1,16 @@
 use super::{select_next, select_prev};
 
 use crate::app::{App, ConfirmAction, EditRequest, Filter, Overlay, Screen};
-use crate::db;
+use crate::{db, editor};
 
 use mongodb::bson::{Bson, Document};
+use ratatui::{Terminal, backend::CrosstermBackend};
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 use std::collections::HashSet;
+
+use std::io;
 
 pub fn handle(app: &mut App, key: KeyEvent) {
     let Screen::Documents {
@@ -134,5 +137,50 @@ fn id_label(id: &Bson) -> String {
             format!("binary({:?}) {}", b.subtype, hex)
         }
         other => other.to_string(),
+    }
+}
+
+pub fn insert(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) {
+    let (
+        Some(client),
+        Some(db_name),
+        Some(coll_name),
+        Screen::Documents {
+            list_state,
+            docs,
+            filter,
+            ..
+        },
+    ) = (
+        app.client.clone(),
+        app.database.clone(),
+        app.collection.clone(),
+        &mut app.screen,
+    )
+    else {
+        return;
+    };
+
+    let new_document = match editor::edit(terminal, &Document::default()) {
+        Ok(Some(doc)) => doc,
+        Ok(None) => return,
+        Err(e) => {
+            app.error_message = Some(e);
+            return;
+        }
+    };
+
+    match db::insert_document(&client, &db_name, &coll_name, &new_document) {
+        Ok(..) => {
+            app.error_message = None;
+            match db::fetch_documents(&client, &db_name, &coll_name, &filter.doc, 0) {
+                Ok(new_docs) => {
+                    *docs = new_docs;
+                    list_state.select(if docs.is_empty() { None } else { Some(0) });
+                }
+                Err(e) => app.error_message = Some(e),
+            }
+        }
+        Err(e) => app.error_message = Some(format!("insertion failed: {}", e)),
     }
 }

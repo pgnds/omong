@@ -40,7 +40,7 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
         if let Some(request) = app.edit_requested.take() {
             match request {
                 EditRequest::Update { doc } => handlers::detail::edit(terminal, app, doc),
-                EditRequest::Insert => {}
+                EditRequest::Insert => handlers::documents::insert(terminal, app),
             }
         }
     }

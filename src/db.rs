@@ -105,3 +105,18 @@ pub fn delete_document(client: &Client, db: &str, coll: &str, id: &Bson) -> Resu
         Ok(())
     }
 }
+
+pub fn insert_document(
+    client: &Client,
+    db: &str,
+    coll: &str,
+    doc: &Document,
+) -> Result<Bson, String> {
+    client
+        .database(db)
+        .collection::<Document>(coll)
+        .insert_one(doc)
+        .run()
+        .map_err(|e| e.to_string())
+        .map(|r| r.inserted_id)
+}
