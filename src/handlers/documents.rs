@@ -148,8 +148,8 @@ pub fn insert(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut A
         Screen::Documents {
             list_state,
             docs,
+            page,
             filter,
-            ..
         },
     ) = (
         app.client.clone(),
@@ -173,7 +173,7 @@ pub fn insert(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut A
     match db::insert_document(&client, &db_name, &coll_name, &new_document) {
         Ok(..) => {
             app.error_message = None;
-            match db::fetch_documents(&client, &db_name, &coll_name, &filter.doc, 0) {
+            match db::fetch_documents(&client, &db_name, &coll_name, &filter.doc, *page) {
                 Ok(new_docs) => {
                     *docs = new_docs;
                     list_state.select(if docs.is_empty() { None } else { Some(0) });
