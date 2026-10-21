@@ -75,11 +75,9 @@ pub fn handle(app: &mut App, key: KeyEvent) {
         _ => {}
     }
 
-    if changed {
-        if let Some((path, _, _)) = current {
-            let new_lines = tree::flatten(doc, expanded);
-            reselect(&new_lines, list_state, path);
-        }
+    if changed && let Some((path, _, _)) = current {
+        let new_lines = tree::flatten(doc, expanded);
+        reselect(&new_lines, list_state, path);
     }
 }
 
@@ -130,14 +128,13 @@ pub fn edit(
                 if let Screen::Documents {
                     docs, list_state, ..
                 } = back.as_mut()
+                    && let Some(i) = list_state.selected()
                 {
-                    if let Some(i) = list_state.selected() {
-                        docs[i] = edited.clone();
-                    }
+                    docs[i] = edited.clone();
                 }
                 *doc = edited;
             }
         }
-        Err(e) => app.error_message = Some(format!("updated failed: {}", e)),
+        Err(e) => app.error_message = Some(format!("update failed: {}", e)),
     }
 }
