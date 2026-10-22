@@ -39,17 +39,17 @@ fn left_line(app: &App) -> Line<'static> {
 
     if let Some(Overlay::FilterPrompt { input }) = &app.overlay {
         let mut spans = vec![
-            Span::styled(" /", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("/", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(format!("{}_", input)),
         ];
         if let Some(err) = &app.error_message {
-            spans.push(Span::styled(format!("   ✗ {}", err), error_style));
+            spans.push(Span::styled(format!("E: {}", err), error_style));
         }
         return Line::from(spans);
     }
 
     if let Some(err) = &app.error_message {
-        return Line::from(Span::styled(format!("   ✗ {}", err), error_style));
+        return Line::from(Span::styled(format!("E: {}", err), error_style));
     }
 
     if let Screen::Documents { filter, .. } = &app.screen {
@@ -59,7 +59,7 @@ fn left_line(app: &App) -> Line<'static> {
                 Style::default().add_modifier(Modifier::DIM),
             ));
         }
-        return Line::from(format!(" filter: {}", filter.text));
+        return Line::from(format!("filter: {}", filter.text));
     }
 
     Line::default()

@@ -25,7 +25,7 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
             continue;
         }
 
-        if key.code == KeyCode::Char('q') {
+        if key.code == KeyCode::Char('q') || key.code == KeyCode::Char('Q') {
             break;
         }
 
