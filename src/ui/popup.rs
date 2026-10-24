@@ -41,7 +41,7 @@ fn render_add_connection(frame: &mut Frame, app: &App) {
         alias_buffer,
         uri_buffer,
         focus,
-        editing_alias,
+        editing_id,
     }) = &app.overlay
     else {
         return;
@@ -52,7 +52,7 @@ fn render_add_connection(frame: &mut Frame, app: &App) {
     frame.render_widget(Clear, popup_area);
 
     let block = Block::default()
-        .title(if editing_alias.is_some() {
+        .title(if editing_id.is_some() {
             "edit connection"
         } else {
             "new connection"

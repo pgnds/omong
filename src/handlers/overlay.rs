@@ -2,7 +2,10 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::{App, ConfirmAction, Filter, Overlay, PopupField, Screen, StatusMessage};
 use crate::db;
-use crate::storage::{delete_connection, load_connections, save_connection, update_connection};
+use crate::secrets;
+use crate::storage::{
+    Connection, delete_connection, load_connections, save_connection, update_connection,
+};
 
 pub fn handle(app: &mut App, key: KeyEvent) {
     match app.overlay {
@@ -18,7 +21,7 @@ fn handle_add_connection(app: &mut App, key: KeyEvent) {
         alias_buffer,
         uri_buffer,
         focus,
-        editing_alias,
+        editing_id,
     }) = &mut app.overlay
     else {
         return;
@@ -53,32 +56,50 @@ fn handle_add_connection(app: &mut App, key: KeyEvent) {
                 app.message = Some(StatusMessage::Error(
                     "alias and uri are both required".to_string(),
                 ));
-            } else if let Some(old_alias) = editing_alias {
-                match update_connection(
-                    &app.saved_connections,
-                    old_alias,
-                    alias_buffer,
-                    uri_buffer.trim(),
-                ) {
-                    Ok(connections) => {
-                        app.saved_connections = connections;
-                        app.message = None;
-                        app.overlay = None;
+            } else if let Some(id) = editing_id {
+                if let Some(mut edited) = app
+                    .saved_connections
+                    .iter()
+                    .find(|c| c.id() == *id)
+                    .cloned()
+                {
+                    edited.alias = alias_buffer.trim().to_string();
+
+                    match secrets::save_uri(edited.id(), uri_buffer.trim())
+                        .map_err(|e| e.to_string())
+                        .and_then(|_| {
+                            update_connection(&app.saved_connections, &edited)
+                                .map_err(|e| e.to_string())
+                        }) {
+                        Ok(connections) => {
+                            app.saved_connections = connections;
+                            app.message = None;
+                            app.overlay = None;
+                        }
+                        Err(e) => {
+                            app.message = Some(StatusMessage::Error(format!(
+                                "failed to save connection: {}",
+                                e
+                            )));
+                        }
                     }
-                    Err(e) => {
-                        app.message = Some(StatusMessage::Error(format!(
-                            "failed to save connection: {}",
-                            e
-                        )));
-                    }
+                } else {
+                    app.message = Some(StatusMessage::Error(
+                        "failed to find connection".to_string(),
+                    ));
                 }
             } else {
-                match save_connection(alias_buffer.trim(), uri_buffer.trim()) {
+                let connection = Connection::new(alias_buffer.trim().to_string());
+
+                // try to store the uri in the keychain first
+                match secrets::save_uri(connection.id(), uri_buffer.trim())
+                    .map_err(|e| e.to_string())
+                    .and_then(|_| save_connection(&connection).map_err(|e| e.to_string()))
+                {
                     Ok(_) => {
                         app.saved_connections = load_connections();
                         app.overlay = None;
                         app.message = None;
-                        app.overlay = None;
                     }
                     Err(e) => {
                         app.message = Some(StatusMessage::Error(format!(
@@ -186,8 +207,12 @@ fn confirm(app: &mut App) {
 
 fn run_confirmed(app: &mut App, action: ConfirmAction) {
     match action {
-        ConfirmAction::DeleteConnection { alias } => {
-            match delete_connection(&app.saved_connections, &alias) {
+        ConfirmAction::DeleteConnection { id } => {
+            match secrets::delete_uri(id)
+                .map_err(|e| e.to_string())
+                .and_then(|_| {
+                    delete_connection(&app.saved_connections, id).map_err(|e| e.to_string())
+                }) {
                 Ok(connections) => {
                     app.saved_connections = connections;
 

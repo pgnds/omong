@@ -35,7 +35,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let items: Vec<ListItem> = app
         .saved_connections
         .iter()
-        .map(|(alias, _uri)| ListItem::new(alias.as_str()))
+        .map(|c| ListItem::new(c.alias.as_str()))
         .collect();
 
     let list = List::new(items)

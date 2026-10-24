@@ -3,6 +3,7 @@ mod db;
 mod editor;
 mod event;
 mod handlers;
+mod secrets;
 mod storage;
 mod tree;
 mod ui;

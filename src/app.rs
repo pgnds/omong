@@ -2,8 +2,9 @@ use mongodb::bson::{Bson, Document};
 use mongodb::sync::Client;
 use ratatui::widgets::ListState;
 use std::collections::HashSet;
+use uuid::Uuid;
 
-use crate::storage::load_connections;
+use crate::storage::{Connection, load_connections};
 
 pub enum Screen {
     Connections,
@@ -35,7 +36,7 @@ pub enum PopupField {
 }
 
 pub enum ConfirmAction {
-    DeleteConnection { alias: String },
+    DeleteConnection { id: Uuid },
     DeleteDocument { id: Bson },
 }
 
@@ -44,7 +45,7 @@ pub enum Overlay {
         alias_buffer: String,
         uri_buffer: String,
         focus: PopupField,
-        editing_alias: Option<String>,
+        editing_id: Option<Uuid>,
     },
     FilterPrompt {
         input: String,
@@ -73,7 +74,7 @@ pub struct App {
     pub client: Option<Client>,
     pub message: Option<StatusMessage>,
 
-    pub saved_connections: Vec<(String, String)>,
+    pub saved_connections: Vec<Connection>,
     pub connections_list_state: ListState,
 
     pub connection_alias: Option<String>,
