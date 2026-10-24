@@ -40,11 +40,12 @@ pub fn handle(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Enter => {
             if let Some(i) = app.connections_list_state.selected() {
-                let uri = app.saved_connections[i].1.clone();
+                let (alias, uri) = app.saved_connections[i].clone();
                 match db::connect(&uri) {
                     Ok(client) => {
                         let names = db::list_databases(&client);
                         app.client = Some(client);
+                        app.connection_alias = Some(alias);
                         app.error_message = None;
                         app.screen = Screen::Databases {
                             list_state: ListState::default(),
