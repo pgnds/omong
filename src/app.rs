@@ -61,12 +61,17 @@ pub enum EditRequest {
     Insert,
 }
 
+pub enum StatusMessage {
+    Error(String),
+    Info(String),
+}
+
 pub struct App {
     pub screen: Screen,
     pub overlay: Option<Overlay>,
 
     pub client: Option<Client>,
-    pub error_message: Option<String>,
+    pub message: Option<StatusMessage>,
 
     pub saved_connections: Vec<(String, String)>,
     pub connections_list_state: ListState,
@@ -84,7 +89,7 @@ impl App {
             screen: Screen::Connections,
             overlay: None,
             client: None,
-            error_message: None,
+            message: None,
             saved_connections: load_connections(),
             connections_list_state: ListState::default(),
             connection_alias: None,

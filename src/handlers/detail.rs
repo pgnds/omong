@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
 use super::{select_next, select_prev};
-use crate::app::{App, EditRequest, Screen};
+use crate::app::{App, EditRequest, Screen, StatusMessage};
 use crate::tree::{self, TreeLine};
 
 use mongodb::bson::Document;
@@ -116,14 +116,14 @@ pub fn edit(
         Ok(Some(doc)) => doc,
         Ok(None) => return,
         Err(e) => {
-            app.error_message = Some(e);
+            app.message = Some(StatusMessage::Error(e));
             return;
         }
     };
 
     match db::replace_document(&client, &db_name, &coll_name, &original, edited.clone()) {
         Ok(()) => {
-            app.error_message = None;
+            app.message = None;
             if let Screen::Detail { doc, back, .. } = &mut app.screen {
                 if let Screen::Documents {
                     docs, list_state, ..
@@ -135,6 +135,6 @@ pub fn edit(
                 *doc = edited;
             }
         }
-        Err(e) => app.error_message = Some(format!("update failed: {}", e)),
+        Err(e) => app.message = Some(StatusMessage::Error(format!("update failed: {}", e))),
     }
 }

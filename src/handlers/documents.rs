@@ -1,6 +1,6 @@
 use super::{select_next, select_prev};
 
-use crate::app::{App, ConfirmAction, EditRequest, Filter, Overlay, Screen};
+use crate::app::{App, ConfirmAction, EditRequest, Filter, Overlay, Screen, StatusMessage};
 use crate::{db, editor};
 
 use mongodb::bson::{Bson, Document};
@@ -62,7 +62,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                         *page = 0;
                         list_state.select(if docs.is_empty() { None } else { Some(0) });
                     }
-                    Err(e) => app.error_message = Some(e),
+                    Err(e) => app.message = Some(StatusMessage::Error(e)),
                 }
             }
         }
@@ -165,22 +165,30 @@ pub fn insert(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut A
         Ok(Some(doc)) => doc,
         Ok(None) => return,
         Err(e) => {
-            app.error_message = Some(e);
+            app.message = Some(StatusMessage::Error(e));
             return;
         }
     };
 
     match db::insert_document(&client, &db_name, &coll_name, &new_document) {
-        Ok(..) => {
-            app.error_message = None;
+        Ok(id) => {
+            app.message = Some(StatusMessage::Info(format!(
+                "inserted doc with id: {}",
+                id_label(&id)
+            )));
             match db::fetch_documents(&client, &db_name, &coll_name, &filter.doc, *page) {
                 Ok(new_docs) => {
                     *docs = new_docs;
                     list_state.select(if docs.is_empty() { None } else { Some(0) });
                 }
-                Err(e) => app.error_message = Some(e),
+                Err(e) => {
+                    app.message = Some(StatusMessage::Error(format!(
+                        "document reload failed: {}",
+                        e
+                    )))
+                }
             }
         }
-        Err(e) => app.error_message = Some(format!("insertion failed: {}", e)),
+        Err(e) => app.message = Some(StatusMessage::Error(format!("insertion failed: {}", e))),
     }
 }

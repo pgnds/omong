@@ -18,7 +18,7 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
             continue;
         };
 
-        app.error_message = None;
+        app.message = None;
 
         if app.overlay.is_some() {
             handlers::overlay::handle(app, key);

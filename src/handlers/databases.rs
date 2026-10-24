@@ -32,7 +32,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             app.client = None;
             app.database = None;
             app.collection = None;
-            app.error_message = None;
+            app.message = None;
             app.connection_alias = None;
             app.screen = Screen::Connections;
         }

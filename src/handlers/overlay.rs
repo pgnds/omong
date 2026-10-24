@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::app::{App, ConfirmAction, Filter, Overlay, PopupField, Screen};
+use crate::app::{App, ConfirmAction, Filter, Overlay, PopupField, Screen, StatusMessage};
 use crate::db;
 use crate::storage::{delete_connection, load_connections, save_connection, update_connection};
 
@@ -50,7 +50,9 @@ fn handle_add_connection(app: &mut App, key: KeyEvent) {
         },
         KeyCode::Enter => {
             if alias_buffer.is_empty() || uri_buffer.is_empty() {
-                app.error_message = Some("alias and uri are both required".to_string());
+                app.message = Some(StatusMessage::Error(
+                    "alias and uri are both required".to_string(),
+                ));
             } else if let Some(old_alias) = editing_alias {
                 match update_connection(
                     &app.saved_connections,
@@ -60,11 +62,14 @@ fn handle_add_connection(app: &mut App, key: KeyEvent) {
                 ) {
                     Ok(connections) => {
                         app.saved_connections = connections;
-                        app.error_message = None;
+                        app.message = None;
                         app.overlay = None;
                     }
                     Err(e) => {
-                        app.error_message = Some(format!("failed to save connection: {}", e));
+                        app.message = Some(StatusMessage::Error(format!(
+                            "failed to save connection: {}",
+                            e
+                        )));
                     }
                 }
             } else {
@@ -72,11 +77,14 @@ fn handle_add_connection(app: &mut App, key: KeyEvent) {
                     Ok(_) => {
                         app.saved_connections = load_connections();
                         app.overlay = None;
-                        app.error_message = None;
+                        app.message = None;
                         app.overlay = None;
                     }
                     Err(e) => {
-                        app.error_message = Some(format!("failed to save connection: {}", e));
+                        app.message = Some(StatusMessage::Error(format!(
+                            "failed to save connection: {}",
+                            e
+                        )));
                     }
                 }
             }
@@ -93,7 +101,7 @@ fn handle_filter(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Esc => {
             app.overlay = None;
-            app.error_message = None;
+            app.message = None;
         }
         KeyCode::Backspace => {
             input.pop();
@@ -111,7 +119,7 @@ fn apply_filter(app: &mut App, text: String) {
     let filter_doc = match db::parse_filter(&text) {
         Ok(d) => d,
         Err(e) => {
-            app.error_message = Some(format!("invalid filter: {}", e));
+            app.message = Some(StatusMessage::Error(format!("invalid filter: {}", e)));
             return;
         }
     };
@@ -124,7 +132,7 @@ fn apply_filter(app: &mut App, text: String) {
     let new_docs = match db::fetch_documents(client, db_name, coll, &filter_doc, 0) {
         Ok(d) => d,
         Err(e) => {
-            app.error_message = Some(format!("query failed: {}", e));
+            app.message = Some(StatusMessage::Error(format!("query failed: {}", e)));
             return;
         }
     };
@@ -145,7 +153,7 @@ fn apply_filter(app: &mut App, text: String) {
         list_state.select(if docs.is_empty() { None } else { Some(0) });
     }
     app.overlay = None;
-    app.error_message = None;
+    app.message = None;
 }
 
 fn handle_confirm(app: &mut App, key: KeyEvent) {
@@ -187,12 +195,17 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                     if len == 0 {
                         app.connections_list_state.select(None);
                     } else if let Some(i) = app.connections_list_state.selected()
-                        && i > len
+                        && i >= len
                     {
                         app.connections_list_state.select(Some(len - 1));
                     }
                 }
-                Err(e) => app.error_message = Some(format!("failed to delete connection: {}", e)),
+                Err(e) => {
+                    app.message = Some(StatusMessage::Error(format!(
+                        "failed to delete connection: {}",
+                        e
+                    )))
+                }
             }
         }
         ConfirmAction::DeleteDocument { id } => {
@@ -203,7 +216,10 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
             };
 
             if let Err(e) = db::delete_document(client, db_name, coll, &id) {
-                app.error_message = Some(format!("failed to delete document: {}", e));
+                app.message = Some(StatusMessage::Error(format!(
+                    "failed to delete document: {}",
+                    e
+                )));
                 return;
             }
 
@@ -236,7 +252,12 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                         list_state.select(Some(selected.min(docs.len() - 1)));
                     }
                 }
-                Err(e) => app.error_message = Some(format!("document reload failed: {}", e)),
+                Err(e) => {
+                    app.message = Some(StatusMessage::Error(format!(
+                        "document reload failed: {}",
+                        e
+                    )))
+                }
             }
         }
     }

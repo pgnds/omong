@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
-use crate::app::{App, Overlay, Screen};
+use crate::app::{App, Overlay, Screen, StatusMessage};
 
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let bar_style = Style::default().bg(Color::Blue).fg(Color::White);
@@ -37,19 +37,29 @@ fn left_line(app: &App) -> Line<'static> {
         .fg(Color::Yellow)
         .add_modifier(Modifier::BOLD);
 
+    let info_style = Style::default()
+        .fg(Color::White)
+        .add_modifier(Modifier::BOLD);
+
     if let Some(Overlay::FilterPrompt { input }) = &app.overlay {
         let mut spans = vec![
             Span::styled("/", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(format!("{}_", input)),
         ];
-        if let Some(err) = &app.error_message {
+        if let Some(StatusMessage::Error(err)) = &app.message {
             spans.push(Span::styled(format!("E: {}", err), error_style));
         }
         return Line::from(spans);
     }
 
-    if let Some(err) = &app.error_message {
-        return Line::from(Span::styled(format!("E: {}", err), error_style));
+    match &app.message {
+        Some(StatusMessage::Error(err)) => {
+            return Line::from(Span::styled(format!("E: {}", err), error_style));
+        }
+        Some(StatusMessage::Info(msg)) => {
+            return Line::from(Span::styled(format!("I: {}", msg), info_style));
+        }
+        None => {}
     }
 
     if let Screen::Documents { filter, .. } = &app.screen {

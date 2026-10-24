@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::widgets::ListState;
 
 use super::{select_next, select_prev};
-use crate::app::{App, ConfirmAction, Overlay, PopupField, Screen};
+use crate::app::{App, ConfirmAction, Overlay, PopupField, Screen, StatusMessage};
 use crate::db;
 
 pub fn handle(app: &mut App, key: KeyEvent) {
@@ -46,13 +46,13 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                         let names = db::list_databases(&client);
                         app.client = Some(client);
                         app.connection_alias = Some(alias);
-                        app.error_message = None;
+                        app.message = None;
                         app.screen = Screen::Databases {
                             list_state: ListState::default(),
                             names,
                         }
                     }
-                    Err(e) => app.error_message = Some(e),
+                    Err(e) => app.message = Some(StatusMessage::Error(e)),
                 }
             }
         }
