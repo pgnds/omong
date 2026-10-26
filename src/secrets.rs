@@ -12,7 +12,10 @@ pub fn get_uri(id: Uuid) -> keyring::Result<String> {
 }
 
 pub fn delete_uri(id: Uuid) -> keyring::Result<()> {
-    entry(id)?.delete_credential()
+    match entry(id)?.delete_credential() {
+        Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 fn entry(id: Uuid) -> keyring::Result<Entry> {
