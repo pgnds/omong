@@ -82,7 +82,20 @@ fn render_add_connection(frame: &mut Frame, app: &App) {
     };
 
     let alias_line = Paragraph::new(format!("alias: {}_", alias_buffer)).style(alias_style);
-    let uri_line = Paragraph::new(format!("uri: {}_", uri_buffer)).style(uri_style);
+
+    let uri = if editing_id.is_some() {
+        let mut s = String::from(uri_buffer);
+        if let Some(password_offset) = s.find('@')
+            && let Some(password_start) = s[..password_offset].rfind(':')
+            && !s[password_start..].starts_with("://")
+        {
+            s.replace_range((password_start + 1)..password_offset, "***")
+        };
+        s
+    } else {
+        uri_buffer.clone()
+    };
+    let uri_line = Paragraph::new(format!("uri: {}_", uri)).style(uri_style);
 
     frame.render_widget(alias_line, fields[0]);
     frame.render_widget(uri_line, fields[1]);
