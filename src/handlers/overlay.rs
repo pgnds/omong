@@ -1,5 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
+use super::id_label;
 use crate::app::{App, ConfirmAction, Filter, Overlay, PopupField, Screen, StatusMessage};
 use crate::db;
 use crate::secrets;
@@ -249,6 +250,11 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                 )));
                 return;
             }
+
+            app.message = Some(StatusMessage::Info(format!(
+                "successfully deleted document: {}",
+                id_label(&id)
+            )));
 
             let Screen::Documents {
                 docs,

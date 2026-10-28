@@ -1,9 +1,9 @@
-use super::{select_next, select_prev};
+use super::{id_label, select_next, select_prev};
 
 use crate::app::{App, ConfirmAction, EditRequest, Filter, Overlay, Screen, StatusMessage};
 use crate::{db, editor};
 
-use mongodb::bson::{Bson, Document};
+use mongodb::bson::Document;
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 use crossterm::event::{KeyCode, KeyEvent};
@@ -125,18 +125,6 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             app.edit_requested = Some(EditRequest::Insert {});
         }
         _ => {}
-    }
-}
-
-fn id_label(id: &Bson) -> String {
-    match id {
-        Bson::ObjectId(oid) => oid.to_hex(),
-        Bson::String(s) => s.clone(),
-        Bson::Binary(b) => {
-            let hex: String = b.bytes.iter().map(|byte| format!("{:02x}", byte)).collect();
-            format!("binary({:?}) {}", b.subtype, hex)
-        }
-        other => other.to_string(),
     }
 }
 

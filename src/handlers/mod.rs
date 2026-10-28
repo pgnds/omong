@@ -5,6 +5,7 @@ pub mod detail;
 pub mod documents;
 pub mod overlay;
 
+use mongodb::bson::Bson;
 use ratatui::widgets::ListState;
 
 pub fn select_next(state: &mut ListState, len: usize) {
@@ -27,4 +28,16 @@ pub fn select_prev(state: &mut ListState, len: usize) {
         None => 0,
     };
     state.select(Some(i));
+}
+
+pub fn id_label(id: &Bson) -> String {
+    match id {
+        Bson::ObjectId(oid) => oid.to_hex(),
+        Bson::String(s) => s.clone(),
+        Bson::Binary(b) => {
+            let hex: String = b.bytes.iter().map(|byte| format!("{:02x}", byte)).collect();
+            format!("binary({:?}) {}", b.subtype, hex)
+        }
+        other => other.to_string(),
+    }
 }

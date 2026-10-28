@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
-use super::{select_next, select_prev};
+use super::{id_label, select_next, select_prev};
 use crate::app::{App, EditRequest, Screen, StatusMessage};
 use crate::tree::{self, TreeLine};
 
@@ -123,7 +123,10 @@ pub fn edit(
 
     match db::replace_document(&client, &db_name, &coll_name, &original, edited.clone()) {
         Ok(()) => {
-            app.message = None;
+            app.message = Some(StatusMessage::Info(format!(
+                "successfully updated document {}",
+                original.get("_id").map(id_label).unwrap_or_default()
+            )));
             if let Screen::Detail { doc, back, .. } = &mut app.screen {
                 if let Screen::Documents {
                     docs, list_state, ..
