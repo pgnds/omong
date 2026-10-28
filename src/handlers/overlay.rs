@@ -161,15 +161,19 @@ fn apply_filter(app: &mut App, text: String) {
         }
     };
 
+    let new_count = db::count_documents(client, db_name, coll, &filter_doc).unwrap_or_default();
+
     if let Screen::Documents {
         docs,
         list_state,
         page,
+        count,
         filter,
     } = &mut app.screen
     {
         *docs = new_docs;
         *page = 0;
+        *count = new_count;
         *filter = Filter {
             text,
             doc: filter_doc,
@@ -260,6 +264,7 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                 docs,
                 list_state,
                 page,
+                count,
                 filter,
             } = &mut app.screen
             else {
@@ -279,6 +284,7 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                     let selected = list_state.selected().unwrap_or(0);
                     *docs = new_docs;
                     *page = new_page;
+                    *count -= 1;
                     if docs.is_empty() {
                         list_state.select(None);
                     } else {

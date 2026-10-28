@@ -6,12 +6,14 @@ use ratatui::{
 };
 
 use crate::app::{App, Screen};
+use crate::db::PAGE_SIZE;
 
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     if let Screen::Documents {
         list_state,
         docs,
         page,
+        count,
         ..
     } = &mut app.screen
     {
@@ -23,7 +25,12 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         let list = List::new(items)
             .block(
                 Block::default()
-                    .title(format!("documents (page {})", *page + 1))
+                    .title(format!(
+                        "{} documents (page {}/{})",
+                        count,
+                        *page + 1,
+                        count.div_ceil(PAGE_SIZE),
+                    ))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Thick),
             )

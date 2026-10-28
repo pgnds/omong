@@ -67,6 +67,20 @@ pub fn fetch_documents(
     Ok(cursor.filter_map(Result::ok).collect())
 }
 
+pub fn count_documents(
+    client: &Client,
+    db: &str,
+    coll: &str,
+    filter: &Document,
+) -> Result<u64, String> {
+    client
+        .database(db)
+        .collection::<Document>(coll)
+        .count_documents(filter.clone())
+        .run()
+        .map_err(|e| e.to_string())
+}
+
 pub fn replace_document(
     client: &Client,
     db: &str,

@@ -17,6 +17,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
         list_state,
         docs,
         page,
+        count,
         filter,
     } = &mut app.screen
     else {
@@ -57,9 +58,14 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             {
                 match db::fetch_documents(client, db_name, coll, &Document::new(), 0) {
                     Ok(new_docs) => {
+                        let new_count =
+                            db::count_documents(client, db_name, coll, &Document::new())
+                                .unwrap_or_default();
+
                         *docs = new_docs;
                         *filter = Filter::default();
                         *page = 0;
+                        *count = new_count;
                         list_state.select(if docs.is_empty() { None } else { Some(0) });
                     }
                     Err(e) => app.message = Some(StatusMessage::Error(e)),
@@ -137,6 +143,7 @@ pub fn insert(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut A
             list_state,
             docs,
             page,
+            count,
             filter,
         },
     ) = (
@@ -166,7 +173,11 @@ pub fn insert(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut A
             )));
             match db::fetch_documents(&client, &db_name, &coll_name, &filter.doc, *page) {
                 Ok(new_docs) => {
+                    let new_count = db::count_documents(&client, &db_name, &coll_name, &filter.doc)
+                        .unwrap_or_default();
+
                     *docs = new_docs;
+                    *count = new_count;
                     list_state.select(if docs.is_empty() { None } else { Some(0) });
                 }
                 Err(e) => {

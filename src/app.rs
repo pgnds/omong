@@ -20,6 +20,7 @@ pub enum Screen {
         list_state: ListState,
         docs: Vec<Document>,
         page: u64,
+        count: u64,
         filter: Filter,
     },
     Detail {

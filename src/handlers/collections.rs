@@ -25,10 +25,16 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                 let docs =
                     db::fetch_documents(client, db_name, &collection_name, &Document::new(), 0)
                         .unwrap_or_default();
+
+                let count =
+                    db::count_documents(client, db_name, &collection_name, &Document::new())
+                        .unwrap_or_default();
+
                 app.screen = Screen::Documents {
                     list_state: ListState::default(),
                     docs,
                     page: 0,
+                    count,
                     filter: Filter::default(),
                 };
             }
