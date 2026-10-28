@@ -56,6 +56,8 @@ fn handle_add_connection(app: &mut App, key: KeyEvent) {
                 app.message = Some(StatusMessage::Error(
                     "alias and uri are both required".to_string(),
                 ));
+            } else if mongodb::options::ConnectionString::parse(uri_buffer.trim()).is_err() {
+                app.message = Some(StatusMessage::Error("not valid mongo uri".to_string()));
             } else if let Some(id) = editing_id {
                 if let Some(mut edited) = app
                     .saved_connections
