@@ -22,13 +22,14 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             let collection_name = names[i].clone();
 
             if let (Some(client), Some(db_name)) = (&app.client, &app.database) {
-                let docs =
-                    db::fetch_documents(client, db_name, &collection_name, &Document::new(), 0)
-                        .unwrap_or_default();
-
-                let count =
-                    db::count_documents(client, db_name, &collection_name, &Document::new())
-                        .unwrap_or_default();
+                let (docs, count) = db::fetch_count_documents(
+                    client,
+                    db_name,
+                    &collection_name,
+                    &Document::new(),
+                    0,
+                )
+                .unwrap_or_default();
 
                 app.screen = Screen::Documents {
                     list_state: ListState::default(),

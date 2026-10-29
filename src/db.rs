@@ -81,6 +81,24 @@ pub fn count_documents(
         .map_err(|e| e.to_string())
 }
 
+pub fn fetch_count_documents(
+    client: &Client,
+    db: &str,
+    coll: &str,
+    filter: &Document,
+    page: u64,
+) -> Result<(Vec<Document>, u64), String> {
+    std::thread::scope(|s| {
+        let count_handle = s.spawn(|| count_documents(client, db, coll, filter));
+        let fetch_handle = s.spawn(|| fetch_documents(client, db, coll, filter, page));
+
+        let count = count_handle.join().map_err(|_| "count thread panicked")??;
+        let docs = fetch_handle.join().map_err(|_| "fetch thread panicked")??;
+
+        Ok((docs, count))
+    })
+}
+
 pub fn replace_document(
     client: &Client,
     db: &str,

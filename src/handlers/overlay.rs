@@ -153,15 +153,14 @@ fn apply_filter(app: &mut App, text: String) {
         return;
     };
 
-    let new_docs = match db::fetch_documents(client, db_name, coll, &filter_doc, 0) {
-        Ok(d) => d,
-        Err(e) => {
-            app.message = Some(StatusMessage::Error(format!("query failed: {}", e)));
-            return;
-        }
-    };
-
-    let new_count = db::count_documents(client, db_name, coll, &filter_doc).unwrap_or_default();
+    let (new_docs, new_count) =
+        match db::fetch_count_documents(client, db_name, coll, &filter_doc, 0) {
+            Ok(d) => d,
+            Err(e) => {
+                app.message = Some(StatusMessage::Error(format!("query failed: {}", e)));
+                return;
+            }
+        };
 
     if let Screen::Documents {
         docs,

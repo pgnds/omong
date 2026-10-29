@@ -34,6 +34,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             {
                 let new_docs = db::fetch_documents(client, db_name, coll, &filter.doc, next)
                     .unwrap_or_default();
+
                 if !new_docs.is_empty() {
                     *page = next;
                     *docs = new_docs;
@@ -56,12 +57,8 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             if let (Some(client), Some(db_name), Some(coll)) =
                 (&app.client, &app.database, &app.collection)
             {
-                match db::fetch_documents(client, db_name, coll, &Document::new(), 0) {
-                    Ok(new_docs) => {
-                        let new_count =
-                            db::count_documents(client, db_name, coll, &Document::new())
-                                .unwrap_or_default();
-
+                match db::fetch_count_documents(client, db_name, coll, &Document::new(), 0) {
+                    Ok((new_docs, new_count)) => {
                         *docs = new_docs;
                         *filter = Filter::default();
                         *page = 0;
@@ -171,11 +168,8 @@ pub fn insert(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut A
                 "inserted doc with id: {}",
                 id_label(&id)
             )));
-            match db::fetch_documents(&client, &db_name, &coll_name, &filter.doc, *page) {
-                Ok(new_docs) => {
-                    let new_count = db::count_documents(&client, &db_name, &coll_name, &filter.doc)
-                        .unwrap_or_default();
-
+            match db::fetch_count_documents(&client, &db_name, &coll_name, &filter.doc, *page) {
+                Ok((new_docs, new_count)) => {
                     *docs = new_docs;
                     *count = new_count;
                     list_state.select(if docs.is_empty() { None } else { Some(0) });
