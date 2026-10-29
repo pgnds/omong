@@ -284,7 +284,7 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                     let selected = list_state.selected().unwrap_or(0);
                     *docs = new_docs;
                     *page = new_page;
-                    *count -= 1;
+                    *count = count.saturating_sub(1);
                     if docs.is_empty() {
                         list_state.select(None);
                     } else {

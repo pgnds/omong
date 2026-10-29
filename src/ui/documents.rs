@@ -29,7 +29,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
                         "{} documents (page {}/{})",
                         count,
                         *page + 1,
-                        count.div_ceil(PAGE_SIZE),
+                        count.div_ceil(PAGE_SIZE).max(1),
                     ))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Thick),
