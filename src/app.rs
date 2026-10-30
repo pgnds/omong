@@ -39,6 +39,7 @@ pub enum PopupField {
 pub enum ConfirmAction {
     DeleteConnection { id: Uuid },
     DeleteDocument { id: Bson },
+    DropCollection { name: String },
 }
 
 pub enum Overlay {

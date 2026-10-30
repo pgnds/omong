@@ -298,5 +298,36 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                 }
             }
         }
+        ConfirmAction::DropCollection { name } => {
+            let (Some(client), Some(db_name)) = (&app.client, &app.database) else {
+                return;
+            };
+
+            if let Err(e) = db::drop_collection(client, db_name, &name) {
+                app.message = Some(StatusMessage::Error(format!(
+                    "failed to drop collection: {}",
+                    e
+                )));
+                return;
+            }
+
+            app.message = Some(StatusMessage::Info(format!(
+                "successfully dropped collection: {}",
+                name
+            )));
+
+            let Screen::Collections { names, list_state } = &mut app.screen else {
+                return;
+            };
+
+            let new_coll_names = db::list_collections(client, db_name);
+            *names = new_coll_names;
+            let selected = list_state.selected().unwrap_or(0);
+            if names.is_empty() {
+                list_state.select(None);
+            } else {
+                list_state.select(Some(selected.min(names.len() - 1)));
+            }
+        }
     }
 }

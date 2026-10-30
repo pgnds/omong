@@ -4,7 +4,7 @@ use ratatui::widgets::ListState;
 use mongodb::bson::Document;
 
 use super::{select_next, select_prev};
-use crate::app::{App, Filter, Screen};
+use crate::app::{App, ConfirmAction, Filter, Overlay, Screen};
 use crate::db;
 
 pub fn handle(app: &mut App, key: KeyEvent) {
@@ -40,6 +40,17 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                 };
             }
             app.collection = Some(collection_name);
+        }
+        KeyCode::Char('d') | KeyCode::Char('D') => {
+            let Some(name) = list_state.selected().and_then(|i| names.get(i)).cloned() else {
+                return;
+            };
+
+            app.overlay = Some(Overlay::Confirm {
+                message: format!("drop collection '{}'?", name),
+                action: ConfirmAction::DropCollection { name },
+                yes_selected: false,
+            });
         }
         KeyCode::Esc => {
             let Some(client) = &app.client else {

@@ -67,7 +67,7 @@ pub fn fetch_documents(
     Ok(cursor.filter_map(Result::ok).collect())
 }
 
-pub fn count_documents(
+fn count_documents(
     client: &Client,
     db: &str,
     coll: &str,
@@ -136,6 +136,19 @@ pub fn delete_document(client: &Client, db: &str, coll: &str, id: &Bson) -> Resu
     } else {
         Ok(())
     }
+}
+
+pub fn drop_database(client: &Client, db: &str) -> Result<(), String> {
+    client.database(db).drop().run().map_err(|e| e.to_string())
+}
+
+pub fn drop_collection(client: &Client, db: &str, coll: &str) -> Result<(), String> {
+    client
+        .database(db)
+        .collection::<Document>(coll)
+        .drop()
+        .run()
+        .map_err(|e| e.to_string())
 }
 
 pub fn insert_document(
