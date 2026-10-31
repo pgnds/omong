@@ -329,5 +329,36 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                 list_state.select(Some(selected.min(names.len() - 1)));
             }
         }
+        ConfirmAction::DropDatabase { name } => {
+            let Some(client) = &app.client else {
+                return;
+            };
+
+            if let Err(e) = db::drop_database(client, &name) {
+                app.message = Some(StatusMessage::Error(format!(
+                    "failed to drop database: {}",
+                    e
+                )));
+                return;
+            }
+
+            app.message = Some(StatusMessage::Info(format!(
+                "successfully dropped database: {}",
+                name
+            )));
+
+            let Screen::Databases { names, list_state } = &mut app.screen else {
+                return;
+            };
+
+            let new_database_list = db::list_databases(client);
+            *names = new_database_list;
+            let selected = list_state.selected().unwrap_or(0);
+            if names.is_empty() {
+                list_state.select(None);
+            } else {
+                list_state.select(Some(selected.min(names.len() - 1)));
+            }
+        }
     }
 }

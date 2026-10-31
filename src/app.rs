@@ -40,6 +40,7 @@ pub enum ConfirmAction {
     DeleteConnection { id: Uuid },
     DeleteDocument { id: Bson },
     DropCollection { name: String },
+    DropDatabase { name: String },
 }
 
 pub enum Overlay {

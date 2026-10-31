@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
 use super::{select_next, select_prev};
-use crate::app::{App, Screen};
+use crate::app::{App, ConfirmAction, Overlay, Screen};
 use crate::db;
 
 pub fn handle(app: &mut App, key: KeyEvent) {
@@ -27,6 +27,17 @@ pub fn handle(app: &mut App, key: KeyEvent) {
                 };
             }
             app.database = Some(db_name);
+        }
+        KeyCode::Char('d') | KeyCode::Char('D') => {
+            let Some(name) = list_state.selected().and_then(|i| names.get(i).cloned()) else {
+                return;
+            };
+
+            app.overlay = Some(Overlay::Confirm {
+                message: format!("drop database '{}'?", name),
+                action: ConfirmAction::DropDatabase { name },
+                yes_selected: false,
+            });
         }
         KeyCode::Esc => {
             app.client = None;

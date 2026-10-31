@@ -122,9 +122,9 @@ fn render_confirm(frame: &mut Frame, message: &str, yes_selected: bool) {
     let normal = Style::default().fg(Color::White);
 
     let buttons = Line::from(vec![
-        Span::styled("  Yes  ", if yes_selected { selected } else { normal }),
-        Span::raw("    "),
         Span::styled("  No  ", if yes_selected { normal } else { selected }),
+        Span::raw("    "),
+        Span::styled("  Yes  ", if yes_selected { selected } else { normal }),
     ]);
 
     let text = Text::from(vec![
