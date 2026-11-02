@@ -32,6 +32,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             yes_selected,
             ..
         }) => render_confirm(frame, message, *yes_selected),
+        Some(Overlay::NewCollection { .. }) => render_new_collection(frame, app),
         Some(Overlay::FilterPrompt { .. }) | None => {}
     }
 }
@@ -99,6 +100,34 @@ fn render_add_connection(frame: &mut Frame, app: &App) {
 
     frame.render_widget(alias_line, fields[0]);
     frame.render_widget(uri_line, fields[1]);
+}
+
+fn render_new_collection(frame: &mut Frame, app: &App) {
+    let Some(Overlay::NewCollection { input }) = &app.overlay else {
+        return;
+    };
+
+    let area = centered_rect(50, 3, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title("New collection")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Thick)
+        .style(Style::default().bg(Color::Black));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let fields = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1)])
+        .split(inner);
+
+    frame.render_widget(
+        Paragraph::new(format!("name: {}_", input)).style(Style::default().fg(Color::Yellow)),
+        fields[0],
+    );
 }
 
 fn render_confirm(frame: &mut Frame, message: &str, yes_selected: bool) {

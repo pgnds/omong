@@ -142,6 +142,14 @@ pub fn drop_database(client: &Client, db: &str) -> Result<(), String> {
     client.database(db).drop().run().map_err(|e| e.to_string())
 }
 
+pub fn create_collection(client: &Client, db: &str, name: &str) -> Result<(), String> {
+    client
+        .database(db)
+        .create_collection(name)
+        .run()
+        .map_err(|e| e.to_string())
+}
+
 pub fn drop_collection(client: &Client, db: &str, coll: &str) -> Result<(), String> {
     client
         .database(db)

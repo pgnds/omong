@@ -53,6 +53,9 @@ pub enum Overlay {
     FilterPrompt {
         input: String,
     },
+    NewCollection {
+        input: String,
+    },
     Confirm {
         message: String,
         action: ConfirmAction,

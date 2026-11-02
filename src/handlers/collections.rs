@@ -41,6 +41,11 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             }
             app.collection = Some(collection_name);
         }
+        KeyCode::Char('a') | KeyCode::Char('A') => {
+            app.overlay = Some(Overlay::NewCollection {
+                input: String::new(),
+            });
+        }
         KeyCode::Char('d') | KeyCode::Char('D') => {
             let Some(name) = list_state.selected().and_then(|i| names.get(i)).cloned() else {
                 return;

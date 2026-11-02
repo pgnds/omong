@@ -13,6 +13,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
         Some(Overlay::FilterPrompt { .. }) => handle_filter(app, key),
         Some(Overlay::Confirm { .. }) => handle_confirm(app, key),
         Some(Overlay::AddConnectionPopup { .. }) => handle_add_connection(app, key),
+        Some(Overlay::NewCollection { .. }) => handle_new_collection(app, key),
         None => {}
     }
 }
@@ -117,6 +118,28 @@ fn handle_add_connection(app: &mut App, key: KeyEvent) {
     }
 }
 
+fn handle_new_collection(app: &mut App, key: KeyEvent) {
+    let Some(Overlay::NewCollection { input }) = &mut app.overlay else {
+        return;
+    };
+
+    match key.code {
+        KeyCode::Esc => {
+            app.overlay = None;
+            app.message = None;
+        }
+        KeyCode::Backspace => {
+            input.pop();
+        }
+        KeyCode::Char(c) => input.push(c),
+        KeyCode::Enter => {
+            let text = input.trim().to_string();
+            apply_new_collection(app, text);
+        }
+        _ => {}
+    }
+}
+
 fn handle_filter(app: &mut App, key: KeyEvent) {
     let Some(Overlay::FilterPrompt { input }) = &mut app.overlay else {
         return;
@@ -136,6 +159,31 @@ fn handle_filter(app: &mut App, key: KeyEvent) {
             apply_filter(app, text);
         }
         _ => {}
+    }
+}
+
+fn apply_new_collection(app: &mut App, name: String) {
+    let (Some(client), Some(database)) = (&app.client, &app.database) else {
+        return;
+    };
+
+    match db::create_collection(client, database, &name) {
+        Ok(()) => {
+            app.overlay = None;
+            app.message = Some(StatusMessage::Info(format!("added collection: {}", name)));
+            let Screen::Collections { names, .. } = &mut app.screen else {
+                return;
+            };
+
+            let new_coll_names = db::list_collections(client, database);
+            *names = new_coll_names;
+        }
+        Err(e) => {
+            app.message = Some(StatusMessage::Error(format!(
+                "failed collection add: {}",
+                e
+            )));
+        }
     }
 }
 
