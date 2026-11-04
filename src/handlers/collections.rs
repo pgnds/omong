@@ -4,7 +4,7 @@ use ratatui::widgets::ListState;
 use mongodb::bson::Document;
 
 use super::{select_next, select_prev};
-use crate::app::{App, ConfirmAction, Filter, Overlay, Screen};
+use crate::app::{App, ConfirmAction, Filter, Overlay, PromptAction, Screen};
 use crate::db;
 
 pub fn handle(app: &mut App, key: KeyEvent) {
@@ -42,7 +42,9 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             app.collection = Some(collection_name);
         }
         KeyCode::Char('a') | KeyCode::Char('A') => {
-            app.overlay = Some(Overlay::NewCollection {
+            app.overlay = Some(Overlay::Prompt {
+                title: "New Collection".to_string(),
+                action: PromptAction::NewCollection,
                 input: String::new(),
             });
         }

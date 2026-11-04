@@ -32,7 +32,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             yes_selected,
             ..
         }) => render_confirm(frame, message, *yes_selected),
-        Some(Overlay::NewCollection { .. }) => render_new_collection(frame, app),
+        Some(Overlay::Prompt { .. }) => render_prompt(frame, app),
         Some(Overlay::FilterPrompt { .. }) | None => {}
     }
 }
@@ -102,8 +102,8 @@ fn render_add_connection(frame: &mut Frame, app: &App) {
     frame.render_widget(uri_line, fields[1]);
 }
 
-fn render_new_collection(frame: &mut Frame, app: &App) {
-    let Some(Overlay::NewCollection { input }) = &app.overlay else {
+fn render_prompt(frame: &mut Frame, app: &App) {
+    let Some(Overlay::Prompt { input, title, .. }) = &app.overlay else {
         return;
     };
 
@@ -111,7 +111,7 @@ fn render_new_collection(frame: &mut Frame, app: &App) {
     frame.render_widget(Clear, area);
 
     let block = Block::default()
-        .title("New collection")
+        .title(title.to_string())
         .borders(Borders::ALL)
         .border_type(BorderType::Thick)
         .style(Style::default().bg(Color::Black));

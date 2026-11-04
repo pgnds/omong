@@ -1,7 +1,9 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
 use super::id_label;
-use crate::app::{App, ConfirmAction, Filter, Overlay, PopupField, Screen, StatusMessage};
+use crate::app::{
+    App, ConfirmAction, Filter, Overlay, PopupField, PromptAction, Screen, StatusMessage,
+};
 use crate::db;
 use crate::secrets;
 use crate::storage::{
@@ -13,7 +15,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
         Some(Overlay::FilterPrompt { .. }) => handle_filter(app, key),
         Some(Overlay::Confirm { .. }) => handle_confirm(app, key),
         Some(Overlay::AddConnectionPopup { .. }) => handle_add_connection(app, key),
-        Some(Overlay::NewCollection { .. }) => handle_new_collection(app, key),
+        Some(Overlay::Prompt { .. }) => handle_prompt(app, key),
         None => {}
     }
 }
@@ -118,8 +120,8 @@ fn handle_add_connection(app: &mut App, key: KeyEvent) {
     }
 }
 
-fn handle_new_collection(app: &mut App, key: KeyEvent) {
-    let Some(Overlay::NewCollection { input }) = &mut app.overlay else {
+fn handle_prompt(app: &mut App, key: KeyEvent) {
+    let Some(Overlay::Prompt { action, input, .. }) = &mut app.overlay else {
         return;
     };
 
@@ -134,7 +136,15 @@ fn handle_new_collection(app: &mut App, key: KeyEvent) {
         KeyCode::Char(c) => input.push(c),
         KeyCode::Enter => {
             let text = input.trim().to_string();
-            apply_new_collection(app, text);
+            match action {
+                PromptAction::NewCollection => {
+                    apply_new_collection(app, text);
+                }
+                PromptAction::NewDatabase { collection_name } => {
+                    let col_name = collection_name.clone();
+                    apply_new_database(app, text, &col_name);
+                }
+            }
         }
         _ => {}
     }
@@ -181,6 +191,31 @@ fn apply_new_collection(app: &mut App, name: String) {
         Err(e) => {
             app.message = Some(StatusMessage::Error(format!(
                 "failed collection add: {}",
+                e
+            )));
+        }
+    }
+}
+
+fn apply_new_database(app: &mut App, name: String, collection_name: &str) {
+    let Some(client) = &app.client else {
+        return;
+    };
+
+    match db::create_collection(client, &name, collection_name) {
+        Ok(()) => {
+            app.overlay = None;
+            app.message = Some(StatusMessage::Info(format!("added database: {}", name)));
+            let Screen::Databases { names, .. } = &mut app.screen else {
+                return;
+            };
+
+            let new_database_names = db::list_databases(client);
+            *names = new_database_names;
+        }
+        Err(e) => {
+            app.message = Some(StatusMessage::Error(format!(
+                "failed to add database: {}",
                 e
             )));
         }

@@ -43,6 +43,11 @@ pub enum ConfirmAction {
     DropDatabase { name: String },
 }
 
+pub enum PromptAction {
+    NewCollection,
+    NewDatabase { collection_name: String },
+}
+
 pub enum Overlay {
     AddConnectionPopup {
         alias_buffer: String,
@@ -53,8 +58,10 @@ pub enum Overlay {
     FilterPrompt {
         input: String,
     },
-    NewCollection {
+    Prompt {
+        title: String,
         input: String,
+        action: PromptAction,
     },
     Confirm {
         message: String,
