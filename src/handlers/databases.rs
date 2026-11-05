@@ -31,10 +31,9 @@ pub fn handle(app: &mut App, key: KeyEvent) {
         KeyCode::Char('a') | KeyCode::Char('A') => {
             app.overlay = Some(Overlay::Prompt {
                 title: "New database".to_string(),
-                action: PromptAction::NewDatabase {
-                    collection_name: String::new(),
-                },
-                input: String::new(),
+                action: PromptAction::NewDatabase,
+                inputs: vec![("name", String::new()), ("collection name", String::new())],
+                focus_index: 0,
             });
         }
         KeyCode::Char('d') | KeyCode::Char('D') => {

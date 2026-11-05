@@ -103,11 +103,18 @@ fn render_add_connection(frame: &mut Frame, app: &App) {
 }
 
 fn render_prompt(frame: &mut Frame, app: &App) {
-    let Some(Overlay::Prompt { input, title, .. }) = &app.overlay else {
+    let Some(Overlay::Prompt {
+        inputs,
+        title,
+        focus_index,
+        ..
+    }) = &app.overlay
+    else {
         return;
     };
 
-    let area = centered_rect(50, 3, frame.area());
+    let height = inputs.len() as u16 + 2;
+    let area = centered_rect(50, height, frame.area());
     frame.render_widget(Clear, area);
 
     let block = Block::default()
@@ -121,13 +128,21 @@ fn render_prompt(frame: &mut Frame, app: &App) {
 
     let fields = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1)])
+        .constraints(inputs.iter().map(|_| Constraint::Length(1)))
         .split(inner);
 
-    frame.render_widget(
-        Paragraph::new(format!("name: {}_", input)).style(Style::default().fg(Color::Yellow)),
-        fields[0],
-    );
+    for (i, (name, input)) in inputs.iter().enumerate() {
+        frame.render_widget(
+            Paragraph::new(format!("{}: {}_", name, input)).style(Style::default().fg(
+                if i == *focus_index {
+                    Color::Yellow
+                } else {
+                    Color::White
+                },
+            )),
+            fields[i],
+        )
+    }
 }
 
 fn render_confirm(frame: &mut Frame, message: &str, yes_selected: bool) {

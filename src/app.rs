@@ -45,7 +45,7 @@ pub enum ConfirmAction {
 
 pub enum PromptAction {
     NewCollection,
-    NewDatabase { collection_name: String },
+    NewDatabase,
 }
 
 pub enum Overlay {
@@ -60,7 +60,8 @@ pub enum Overlay {
     },
     Prompt {
         title: String,
-        input: String,
+        inputs: Vec<(&'static str, String)>,
+        focus_index: usize,
         action: PromptAction,
     },
     Confirm {

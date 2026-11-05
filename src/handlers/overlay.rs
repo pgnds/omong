@@ -121,7 +121,17 @@ fn handle_add_connection(app: &mut App, key: KeyEvent) {
 }
 
 fn handle_prompt(app: &mut App, key: KeyEvent) {
-    let Some(Overlay::Prompt { action, input, .. }) = &mut app.overlay else {
+    let Some(Overlay::Prompt {
+        action,
+        inputs,
+        focus_index,
+        ..
+    }) = &mut app.overlay
+    else {
+        return;
+    };
+
+    let Some((_, input)) = inputs.get_mut(*focus_index) else {
         return;
     };
 
@@ -133,19 +143,25 @@ fn handle_prompt(app: &mut App, key: KeyEvent) {
         KeyCode::Backspace => {
             input.pop();
         }
-        KeyCode::Char(c) => input.push(c),
-        KeyCode::Enter => {
-            let text = input.trim().to_string();
-            match action {
-                PromptAction::NewCollection => {
-                    apply_new_collection(app, text);
-                }
-                PromptAction::NewDatabase { collection_name } => {
-                    let col_name = collection_name.clone();
-                    apply_new_database(app, text, &col_name);
-                }
-            }
+        KeyCode::Tab => {
+            *focus_index = (*focus_index + 1) % inputs.len();
         }
+        KeyCode::Char(c) => input.push(c),
+        KeyCode::Enter => match action {
+            PromptAction::NewCollection => {
+                let Some(database_name) = &app.database.clone() else {
+                    return;
+                };
+                let collection_name = inputs[0].1.trim().to_string();
+                apply_new_collection(app, database_name, collection_name);
+            }
+            PromptAction::NewDatabase if inputs.len() == 2 => {
+                let collection_name = inputs[1].1.trim().to_string();
+                let database_name = inputs[0].1.trim().to_string();
+                apply_new_collection(app, &database_name, collection_name);
+            }
+            PromptAction::NewDatabase => {}
+        },
         _ => {}
     }
 }
@@ -172,8 +188,8 @@ fn handle_filter(app: &mut App, key: KeyEvent) {
     }
 }
 
-fn apply_new_collection(app: &mut App, name: String) {
-    let (Some(client), Some(database)) = (&app.client, &app.database) else {
+fn apply_new_collection(app: &mut App, database: &str, name: String) {
+    let Some(client) = &app.client else {
         return;
     };
 
@@ -181,41 +197,22 @@ fn apply_new_collection(app: &mut App, name: String) {
         Ok(()) => {
             app.overlay = None;
             app.message = Some(StatusMessage::Info(format!("added collection: {}", name)));
-            let Screen::Collections { names, .. } = &mut app.screen else {
-                return;
-            };
 
-            let new_coll_names = db::list_collections(client, database);
-            *names = new_coll_names;
+            match &mut app.screen {
+                Screen::Collections { names, .. } => {
+                    let new_coll_names = db::list_collections(client, database);
+                    *names = new_coll_names;
+                }
+                Screen::Databases { names, .. } => {
+                    let new_db_names = db::list_databases(client);
+                    *names = new_db_names;
+                }
+                _ => {}
+            }
         }
         Err(e) => {
             app.message = Some(StatusMessage::Error(format!(
                 "failed collection add: {}",
-                e
-            )));
-        }
-    }
-}
-
-fn apply_new_database(app: &mut App, name: String, collection_name: &str) {
-    let Some(client) = &app.client else {
-        return;
-    };
-
-    match db::create_collection(client, &name, collection_name) {
-        Ok(()) => {
-            app.overlay = None;
-            app.message = Some(StatusMessage::Info(format!("added database: {}", name)));
-            let Screen::Databases { names, .. } = &mut app.screen else {
-                return;
-            };
-
-            let new_database_names = db::list_databases(client);
-            *names = new_database_names;
-        }
-        Err(e) => {
-            app.message = Some(StatusMessage::Error(format!(
-                "failed to add database: {}",
                 e
             )));
         }

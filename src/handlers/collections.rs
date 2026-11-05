@@ -45,7 +45,8 @@ pub fn handle(app: &mut App, key: KeyEvent) {
             app.overlay = Some(Overlay::Prompt {
                 title: "New Collection".to_string(),
                 action: PromptAction::NewCollection,
-                input: String::new(),
+                inputs: vec![("name", String::new())],
+                focus_index: 0,
             });
         }
         KeyCode::Char('d') | KeyCode::Char('D') => {
