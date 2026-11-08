@@ -194,6 +194,15 @@ fn apply_new_collection(app: &mut App, database: &str, name: String) {
         return;
     };
 
+    let existing_collections = db::list_collections(client, database);
+    if existing_collections.contains(&name) {
+        app.message = Some(StatusMessage::Error(format!(
+            "collection {} already exists",
+            name
+        )));
+        return;
+    }
+
     match db::create_collection(client, database, &name) {
         Ok(()) => {
             app.overlay = None;
