@@ -1,5 +1,3 @@
-use crossterm::event::{KeyCode, KeyEvent};
-
 use super::id_label;
 use crate::app::{
     App, ConfirmAction, Filter, Overlay, PopupField, PromptAction, Screen, StatusMessage,
@@ -9,6 +7,9 @@ use crate::secrets;
 use crate::storage::{
     Connection, delete_connection, load_connections, save_connection, update_connection,
 };
+use crossterm::event::{KeyCode, KeyEvent};
+use mongodb::bson::Document;
+use ratatui::widgets::ListState;
 
 pub fn handle(app: &mut App, key: KeyEvent) {
     match app.overlay {
@@ -198,16 +199,24 @@ fn apply_new_collection(app: &mut App, database: &str, name: String) {
             app.overlay = None;
             app.message = Some(StatusMessage::Info(format!("added collection: {}", name)));
 
-            match &mut app.screen {
-                Screen::Collections { names, .. } => {
-                    let new_coll_names = db::list_collections(client, database);
-                    *names = new_coll_names;
+            match db::fetch_count_documents(client, database, &name, &Document::new(), 0) {
+                Ok((docs, count)) => {
+                    app.collection = Some(name);
+                    app.database = Some(database.to_string());
+                    app.screen = Screen::Documents {
+                        list_state: ListState::default(),
+                        count,
+                        page: 0,
+                        docs,
+                        filter: Filter::default(),
+                    };
                 }
-                Screen::Databases { names, .. } => {
-                    let new_db_names = db::list_databases(client);
-                    *names = new_db_names;
+                Err(e) => {
+                    app.message = Some(StatusMessage::Error(format!(
+                        "document reload failed: {}",
+                        e
+                    )));
                 }
-                _ => {}
             }
         }
         Err(e) => {
