@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
-use crate::app::{App, Overlay, PopupField};
+use crate::app::{App, Overlay, PopupField, Screen};
 
 fn centered_rect(percent_x: u16, height: u16, area: Rect) -> Rect {
     let vertical = Layout::default()
@@ -34,6 +34,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         }) => render_confirm(frame, message, *yes_selected),
         Some(Overlay::Prompt { .. }) => render_prompt(frame, app),
         Some(Overlay::FilterPrompt { .. }) | None => {}
+        Some(Overlay::InformationBox) => render_information_box(frame, app),
     }
 }
 
@@ -178,4 +179,85 @@ fn render_confirm(frame: &mut Frame, message: &str, yes_selected: bool) {
     ]);
 
     frame.render_widget(Paragraph::new(text).alignment(Alignment::Center), inner);
+}
+
+const ALL_SCREENS_KEYS: &[(&str, &str)] = &[
+    ("q", "quit (not while a popup is open)"),
+    ("?", "help"),
+    ("arrow up/down", "move selection"),
+];
+
+const CONNECTIONS_KEYS: &[(&str, &str)] = &[
+    ("Enter", "connect to instance"),
+    ("Ctrl+A", "add connection"),
+    ("e", "edit connection"),
+    ("d", "delete connection"),
+];
+
+const DATABASES_KEYS: &[(&str, &str)] = &[
+    ("Enter", "open database"),
+    ("a", "new database (first collection required)"),
+    ("d", "drop database"),
+    ("Esc", "disconnect, back to connections"),
+];
+
+const COLLECTIONS_KEYS: &[(&str, &str)] = &[
+    ("Enter", "open collection"),
+    ("a", "new collection"),
+    ("d", "drop collection"),
+    ("Esc", "back to databases list"),
+];
+
+const DOCUMENTS_KEYS: &[(&str, &str)] = &[
+    ("Enter", "open document"),
+    ("arrow left/right", "previous/next page"),
+    ("/", "filter"),
+    ("i", "insert document (opens $EDITOR)"),
+    ("d", "drop document"),
+    ("Esc", "clear filter if set, otherwise back to collections"),
+];
+
+const DETAIL_KEYS: &[(&str, &str)] = &[
+    ("Enter or arrow left/right", "expand/collapse field"),
+    ("+/-", "expand/collapse all fields"),
+    ("e", "edit document (opens $EDITOR)"),
+    ("Esc", "back to documents"),
+];
+
+fn render_information_box(frame: &mut Frame, app: &App) {
+    let mut commands = ALL_SCREENS_KEYS.to_vec();
+
+    match app.screen {
+        Screen::Connections => commands.extend_from_slice(CONNECTIONS_KEYS),
+        Screen::Databases { .. } => commands.extend_from_slice(DATABASES_KEYS),
+        Screen::Collections { .. } => commands.extend_from_slice(COLLECTIONS_KEYS),
+        Screen::Documents { .. } => commands.extend_from_slice(DOCUMENTS_KEYS),
+        Screen::Detail { .. } => commands.extend_from_slice(DETAIL_KEYS),
+    }
+
+    let height = commands.len() as u16 + 2;
+    let area = centered_rect(60, height, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title("help".to_string())
+        .borders(Borders::ALL)
+        .border_type(BorderType::Thick)
+        .style(Style::default().bg(Color::Black));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let fields = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(commands.iter().map(|_| Constraint::Length(1)))
+        .split(inner);
+
+    for (i, (key, action)) in commands.iter().enumerate() {
+        frame.render_widget(Paragraph::new(*key), fields[i]);
+        frame.render_widget(
+            Paragraph::new(*action).alignment(Alignment::Right),
+            fields[i],
+        );
+    }
 }

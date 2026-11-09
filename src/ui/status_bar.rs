@@ -12,7 +12,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let bar_style = Style::default().bg(Color::Blue).fg(Color::White);
 
     let indicators = format!(
-        " conn: {} | db: {} | coll: {} ",
+        " conn: {} | db: {} | coll: {} | ? help",
         app.connection_alias.as_deref().unwrap_or("-"),
         app.database.as_deref().unwrap_or("-"),
         app.collection.as_deref().unwrap_or("-"),

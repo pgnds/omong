@@ -3,7 +3,7 @@ use std::io;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{Terminal, backend::CrosstermBackend};
 
-use crate::app::{App, EditRequest, Screen};
+use crate::app::{App, EditRequest, Overlay, Screen};
 use crate::handlers;
 use crate::ui;
 
@@ -22,6 +22,11 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
 
         if app.overlay.is_some() {
             handlers::overlay::handle(app, key);
+            continue;
+        }
+
+        if key.code == KeyCode::Char('?') {
+            app.overlay = Some(Overlay::InformationBox);
             continue;
         }
 

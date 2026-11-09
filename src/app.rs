@@ -69,6 +69,7 @@ pub enum Overlay {
         action: ConfirmAction,
         yes_selected: bool,
     },
+    InformationBox,
 }
 
 pub enum EditRequest {

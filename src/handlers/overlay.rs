@@ -17,6 +17,7 @@ pub fn handle(app: &mut App, key: KeyEvent) {
         Some(Overlay::Confirm { .. }) => handle_confirm(app, key),
         Some(Overlay::AddConnectionPopup { .. }) => handle_add_connection(app, key),
         Some(Overlay::Prompt { .. }) => handle_prompt(app, key),
+        Some(Overlay::InformationBox) => handle_information_box(app, key),
         None => {}
     }
 }
@@ -458,5 +459,11 @@ fn run_confirmed(app: &mut App, action: ConfirmAction) {
                 list_state.select(Some(selected.min(names.len() - 1)));
             }
         }
+    }
+}
+
+fn handle_information_box(app: &mut App, key: KeyEvent) {
+    if key.code == KeyCode::Esc {
+        app.overlay = None;
     }
 }
